@@ -12,6 +12,8 @@ import java.net.InetAddress
 class MainActivity : AppCompatActivity() {
 
     private lateinit var ipAddressTextView: TextView
+    private val raspberryPiIpAddress = "라즈베리파이의_IP_주소"
+    private val udpPort = 12345
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,7 +23,7 @@ class MainActivity : AppCompatActivity() {
         ipAddressTextView = findViewById(R.id.ipAddressTextView)
 
         button.setOnClickListener {
-            sendUDPBroadcast("Hello Raspberry Pi!", 12345)
+            sendUDPBroadcast("Hello Raspberry Pi!", udpPort)
         }
     }
 
@@ -40,7 +42,7 @@ class MainActivity : AppCompatActivity() {
                 socket.send(sendPacket)
 
                 // 라즈베리 파이의 IP 주소를 표시
-                val raspPiAddress = sendPacket.address.hostAddress
+                val raspPiAddress = InetAddress.getByName(raspberryPiIpAddress).hostAddress
                 runOnUiThread {
                     ipAddressTextView.text = "라즈베리 파이 IP 주소: $raspPiAddress"
                 }
