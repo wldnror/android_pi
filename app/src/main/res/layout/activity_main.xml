@@ -6,22 +6,13 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <Button
-        android:id="@+id/sendButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Send UDP Message"
-        android:layout_centerInParent="true" />
-
     <TextView
         android:id="@+id/ipAddressTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/sendButton"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="20dp"
+        android:layout_centerInParent="true"
         android:textSize="16sp"
         android:textColor="@android:color/black"
-        android:textStyle="bold" />
-
+        android:textStyle="bold"
+        android:text="IP 주소를 검색 중입니다..." />
 </RelativeLayout>

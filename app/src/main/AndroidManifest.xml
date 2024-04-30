@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 인터넷 사용 권한 추가 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 필요한 경우 추가 권한을 명시 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -15,15 +17,21 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SSH_LED"
         tools:targetApi="31">
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+        <service
+            android:name=".NetworkScanService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"> <!-- foregroundServiceType 설정 -->
+        </service>
+
+    </application>
 </manifest>
