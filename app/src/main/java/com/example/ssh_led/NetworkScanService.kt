@@ -32,19 +32,40 @@ class NetworkScanService : Service() {
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Network Scan Service")
-            .setContentText("Scanning for Raspberry Pi devices")
-            .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .build()
+        val signal = intent.getStringExtra("signal")
 
-        startForeground(1, notification)
+        if (signal != null) {
+            Thread {
+                sendSignal(signal)
+            }.start()
+        } else {
+            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Network Scan Service")
+                .setContentText("Scanning for Raspberry Pi devices")
+                .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
+                .build()
 
-        Thread(Runnable {
-            scanForDevices()
-        }).start()
+            startForeground(1, notification)
+
+            Thread {
+                scanForDevices()
+            }.start()
+        }
 
         return START_NOT_STICKY
+    }
+
+    private fun sendSignal(signal: String) {
+        try {
+            DatagramSocket().use { socket ->
+                socket.broadcast = true
+                val sendData = signal.toByteArray()
+                val packet = DatagramPacket(sendData, sendData.size, InetAddress.getByName("255.255.255.255"), udpPort)
+                socket.send(packet)
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
     }
 
     private fun scanForDevices() {

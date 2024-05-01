@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 녹화 중일 때 사용할 배경 -->
+    <item android:state_selected="true">
+        <shape android:shape="oval">
+            <solid android:color="#FF0000"/> <!-- 빨간색 -->
+        </shape>
+    </item>
+    <!-- 기본 상태의 배경 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF"/> <!-- 흰색 -->
+        </shape>
+    </item>
+</selector>
