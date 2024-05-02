@@ -9,7 +9,7 @@
     <!-- 기본 상태의 배경 -->
     <item>
         <shape android:shape="oval">
-            <solid android:color="#FFFFFF"/> <!-- 흰색 -->
+            <solid android:color="#909090"/> <!-- 흰색 -->
         </shape>
     </item>
 </selector>
