@@ -1,6 +1,5 @@
 package com.example.ssh_led
 
-import android.graphics.Color
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
@@ -22,7 +21,14 @@ class MainActivity : AppCompatActivity() {
     private val ipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val ip = intent?.getStringExtra("ip_address")
-            ipAddressTextView.text = "AI멀티백 IP 주소: $ip"
+            ipAddressTextView.text = ip ?: "IP 주소를 받아오지 못했습니다."
+        }
+    }
+
+    private val recordingStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val isRecordingUpdate = intent?.getStringExtra("recording_status") == "RECORDING"
+            updateRecordingUI(isRecordingUpdate)
         }
     }
 
@@ -33,7 +39,6 @@ class MainActivity : AppCompatActivity() {
         ipAddressTextView = findViewById(R.id.ipAddressTextView)
         recButton = findViewById(R.id.recButton)
 
-        // 애니메이션 로드
         blinkAnimation = AnimationUtils.loadAnimation(this, R.anim.blink)
 
         recButton.setOnClickListener {
@@ -44,6 +49,11 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(
             ipReceiver, IntentFilter("UPDATE_IP_ADDRESS")
         )
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            recordingStatusReceiver, IntentFilter("UPDATE_RECORDING_STATUS")
+        )
+
+        sendSignal("CHECK_STATUS")
 
         Intent(this, NetworkScanService::class.java).also {
             startForegroundService(it)
@@ -51,29 +61,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleRecording() {
-        recButton.isSelected = isRecording // 버튼의 선택 상태 업데이트
+        recButton.isSelected = isRecording
         if (isRecording) {
-            recButton.startAnimation(blinkAnimation)  // 깜빡임 애니메이션 시작
-            startRecording()
+            recButton.startAnimation(blinkAnimation)
+            sendSignal("START_RECORDING")
         } else {
-            recButton.clearAnimation()  // 깜빡임 애니메이션 중지
-            stopRecording()
+            recButton.clearAnimation()
+            sendSignal("STOP_RECORDING")
         }
     }
 
-    private fun startRecording() {
-        // 녹화 시작 로직
-        sendSignal("0003")
-    }
-
-    private fun stopRecording() {
-        // 녹화 중지 로직
-        sendSignal("0003")
+    private fun updateRecordingUI(isRecordingUpdate: Boolean) {
+        if (isRecording != isRecordingUpdate) {
+            isRecording = isRecordingUpdate
+            recButton.isSelected = isRecording
+            if (isRecording) {
+                recButton.startAnimation(blinkAnimation)
+            } else {
+                recButton.clearAnimation()
+            }
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(ipReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(recordingStatusReceiver)
     }
 
     private fun sendSignal(signal: String) {

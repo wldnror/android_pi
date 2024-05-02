@@ -13,6 +13,7 @@ import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import android.util.Log
 
 class NetworkScanService : Service() {
     private val CHANNEL_ID = "NetworkScanServiceChannel"
@@ -32,25 +33,20 @@ class NetworkScanService : Service() {
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
-        val signal = intent.getStringExtra("signal")
+        val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
 
-        if (signal != null) {
-            Thread {
-                sendSignal(signal)
-            }.start()
-        } else {
-            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Network Scan Service")
-                .setContentText("Scanning for Raspberry Pi devices")
-                .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-                .build()
+        Thread {
+            sendSignal(signal)
+        }.start()
 
-            startForeground(1, notification)
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Network Scan Service")
+            .setContentText("Scanning for Raspberry Pi devices")
+            .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
+            .build()
 
-            Thread {
-                scanForDevices()
-            }.start()
-        }
+        startForeground(1, notification)
+        listenForUdpBroadcast()
 
         return START_NOT_STICKY
     }
@@ -65,35 +61,33 @@ class NetworkScanService : Service() {
             }
         } catch (e: IOException) {
             e.printStackTrace()
+            Log.e("NetworkScanService", "Error sending signal: ", e)
         }
     }
 
-    private fun scanForDevices() {
-        try {
-            DatagramSocket().use { socket ->
-                socket.broadcast = true
-                val message = "Hello Raspberry Pi!"
-                val sendData = message.toByteArray()
-                val packet = DatagramPacket(sendData, sendData.size, InetAddress.getByName("255.255.255.255"), udpPort)
-                socket.send(packet)
-
-                // Listen for response
-                val buf = ByteArray(1024)
-                val response = DatagramPacket(buf, buf.size)
-                socket.receive(response)
-                val responseText = String(response.data, 0, response.length)
-
-                updateMainActivity(responseText)
+    private fun listenForUdpBroadcast() {
+        Thread {
+            try {
+                DatagramSocket(udpPort).use { socket ->
+                    val buffer = ByteArray(1024)
+                    while (true) {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        val receivedText = String(packet.data, 0, packet.length).trim()
+                        Log.d("NetworkScanService", "Received UDP broadcast: $receivedText")
+                        val updateIntent = if (receivedText.startsWith("IP:")) {
+                            Intent("UPDATE_IP_ADDRESS").apply { putExtra("ip_address", receivedText.substring(3)) }
+                        } else {
+                            Intent("UPDATE_RECORDING_STATUS").apply { putExtra("recording_status", receivedText) }
+                        }
+                        LocalBroadcastManager.getInstance(this@NetworkScanService).sendBroadcast(updateIntent)
+                    }
+                }
+            } catch (e: IOException) {
+                e.printStackTrace()
+                Log.e("NetworkScanService", "Error receiving UDP broadcast: ", e)
             }
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun updateMainActivity(ip: String) {
-        val intent = Intent("UPDATE_IP_ADDRESS")
-        intent.putExtra("ip_address", ip)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        }.start()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
