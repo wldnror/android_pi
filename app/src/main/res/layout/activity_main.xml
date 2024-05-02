@@ -17,21 +17,6 @@
         android:textStyle="bold"
         android:text="IP 주소를 검색 중입니다..." />
 
-    <GridLayout
-        android:id="@+id/buttonGrid"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/ipAddressTextView"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="20dp"
-        android:rowCount="4"
-        android:columnCount="3"
-        android:alignmentMode="alignMargins"
-        android:padding="14dp">
-
-        <!-- 동적으로 버튼 추가 예정 -->
-    </GridLayout>
-
     <Button
         android:id="@+id/recButton"
         android:layout_width="80dp"
@@ -41,8 +26,8 @@
         android:layout_marginEnd="15dp"
         android:layout_marginBottom="15dp"
         android:background="@drawable/rec_button_selector"
-        android:shape="oval"
         android:text="REC"
-        android:textColor="@color/white"
-        android:textStyle="bold" />
+        android:textColor="@android:color/black"
+        android:textStyle="bold"
+        android:shape="oval"/>
 </RelativeLayout>
