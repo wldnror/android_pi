@@ -4,23 +4,42 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    tools:context=".MainActivity"
+    android:background="#FFF">
 
+    <!-- IP 주소 텍스트 -->
     <TextView
         android:id="@+id/ipAddressTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="20dp"
-        android:textSize="16sp"
-        android:textColor="@android:color/black"
+        android:textSize="18sp"
+        android:textColor="#FF5722"
         android:textStyle="bold"
-        android:text="IP 주소를 검색 중입니다..." />
+        android:background="@android:color/white"
+        android:padding="10dp"
+        android:elevation="4dp"
+        android:text="IP 주소를 검색 중입니다..."
+        android:drawableLeft="@android:drawable/ic_menu_search"
+        android:drawablePadding="10dp"
+        android:gravity="center_vertical"/>
 
+
+    <!-- 로딩 인디케이터 -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:indeterminate="true"
+        android:visibility="gone"/>  <!-- 처음에는 보이지 않도록 설정 -->
+
+    <!-- 기타 UI 요소들 -->
     <Button
         android:id="@+id/recButton"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
         android:layout_marginEnd="15dp"
@@ -28,6 +47,14 @@
         android:background="@drawable/rec_button_selector"
         android:text="REC"
         android:textColor="@android:color/black"
-        android:textStyle="bold"
-        android:shape="oval"/>
+        android:textStyle="bold"/>
+
+    <ImageView
+        android:id="@+id/imageView3"
+        android:layout_width="wrap_content"
+        android:layout_height="100dp"
+        android:layout_below="@+id/ipAddressTextView"
+        android:layout_marginTop="391dp"
+        app:srcCompat="@drawable/kisspng_car_vehicle_horn_mandatory_sign_5b570f1e71dcc1_1970872315324321584664" />
+
 </RelativeLayout>
