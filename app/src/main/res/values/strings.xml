@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">SSH_LED</string>
+    <string name="app_name">용굴라이더</string>
+    <!-- 여기에 추가 -->
+    <string name="home">홈</string>
+    <string name="settings">설정</string>
+    <string name="horn">경적 설정</string>
 </resources>

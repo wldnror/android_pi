@@ -1,0 +1,11 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_home"
+        android:title="홈 🏠" />
+    <item
+        android:id="@+id/nav_horn"
+        android:title="경적 설정 📢" />
+    <item
+        android:id="@+id/nav_settings"
+        android:title="설정 ⚙️" />
+</menu>

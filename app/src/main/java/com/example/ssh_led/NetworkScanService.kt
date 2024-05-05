@@ -41,6 +41,7 @@ class NetworkScanService : Service() {
 
         Thread {
             sendSignal(signal)
+            sendSignal("REQUEST_RECORDING_STATUS")
         }.start()
 
         val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
