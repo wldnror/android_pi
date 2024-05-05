@@ -61,8 +61,10 @@ class MainActivity : AppCompatActivity() {
 
     private val recordingStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            val isRecordingUpdate = intent?.getStringExtra("recording_status") == "RECORDING"
-            updateRecordingUI(isRecordingUpdate)
+            val isRecordingUpdate = intent?.getStringExtra("recording_status")
+            if (isRecordingUpdate == "RECORDING" || isRecordingUpdate == "NOT_RECORDING") {
+                updateRecordingUI(isRecordingUpdate == "RECORDING")
+            }
         }
     }
 
@@ -97,10 +99,12 @@ class MainActivity : AppCompatActivity() {
 
     fun onRightBlinkerClicked(view: View) {
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        sendSignal("Right Blinker Activated")
     }
 
     fun onLeftBlinkerClicked(view: View) {
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        sendSignal("Left Blinker Activated")
     }
 
     private fun blinkerSequence(first: Int, second: Int, third: Int) {
@@ -223,16 +227,17 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun onHorizontalSwipeRight() {
-        // 오른쪽으로 수평 스와이프할 때의 반응
         Toast.makeText(this, "오른쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        sendSignal("Right Blinker Activated")
     }
 
     private fun onHorizontalSwipeLeft() {
-        // 왼쪽으로 수평 스와이프할 때의 반응
         Toast.makeText(this, "왼쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        sendSignal("Left Blinker Activated")
     }
+
 
     private fun onVerticalSwipeUp() {
         // 위로 수직 스와이프할 때의 반응

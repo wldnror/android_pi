@@ -40,11 +40,17 @@ class NetworkScanService : Service() {
         val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
 
         Thread {
-            sendSignal(signal)
-            sendSignal("REQUEST_RECORDING_STATUS")
+            when (signal) {
+                "Right Blinker Activated", "Left Blinker Activated" -> sendSignal(signal)
+                "REQUEST_RECORDING_STATUS" -> sendSignal(signal)
+                else -> {
+                    sendSignal(signal)  // IP 요청 등 기타 신호 처리
+                    sendSignal("REQUEST_RECORDING_STATUS")  // 녹화 상태 요청
+                }
+            }
         }.start()
 
-        val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
+    val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
             PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
