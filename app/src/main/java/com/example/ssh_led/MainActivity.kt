@@ -6,6 +6,7 @@ import android.content.IntentFilter
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -25,7 +26,6 @@ import kotlinx.coroutines.*
 import android.os.Looper
 import android.widget.ProgressBar
 
-
 class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
 
@@ -42,6 +42,13 @@ class MainActivity : AppCompatActivity() {
     private var selectedSoundId: Int? = null
     private lateinit var prefs: SharedPreferences
     private var loadingDots = ""
+
+    // 스와이프 감지를 위한 변수
+    private var x1: Float = 0.0f
+    private var x2: Float = 0.0f
+    private var y1: Float = 0.0f
+    private var y2: Float = 0.0f
+    private val MIN_DISTANCE = 150 // 최소 스와이프 거리
 
     private val ipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -150,6 +157,113 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
+
+        // 스와이프 리스너 설정
+        findViewById<View>(R.id.main_layout).setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    x1 = event.x
+                    y1 = event.y
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    x2 = event.x
+                    y2 = event.y
+                    if (!isTouchInsideHornButton(x1, y1)) {
+                        handleSwipe(x1, y1, x2, y2)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun isTouchInsideHornButton(x: Float, y: Float): Boolean {
+        val location = IntArray(2)
+        hornImageView.getLocationOnScreen(location)
+        val xStart = location[0]
+        val yStart = location[1]
+        val xEnd = xStart + hornImageView.width
+        val yEnd = yStart + hornImageView.height
+
+        return x >= xStart && x <= xEnd && y >= yStart && y <= yEnd
+    }
+    private fun handleSwipe(x1: Float, y1: Float, x2: Float, y2: Float) {
+        val deltaX = x2 - x1
+        val deltaY = y2 - y1
+
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            if (deltaX > 0) {
+                onHorizontalSwipeRight()
+            } else {
+                onHorizontalSwipeLeft()
+            }
+        } else {
+            if (deltaY > 0) {
+                onVerticalSwipeDown()
+            } else {
+                onVerticalSwipeUp()
+            }
+        }
+
+        // 대각선 스와이프 추가
+        if (Math.abs(deltaX) > MIN_DISTANCE && Math.abs(deltaY) > MIN_DISTANCE) {
+            if (deltaX > 0 && deltaY > 0) {
+                onDiagonalSwipeBottomRight()
+            } else if (deltaX > 0 && deltaY < 0) {
+                onDiagonalSwipeTopRight()
+            } else if (deltaX < 0 && deltaY > 0) {
+                onDiagonalSwipeBottomLeft()
+            } else if (deltaX < 0 && deltaY < 0) {
+                onDiagonalSwipeTopLeft()
+            }
+        }
+    }
+
+
+    private fun onHorizontalSwipeRight() {
+        // 오른쪽으로 수평 스와이프할 때의 반응
+        Toast.makeText(this, "오른쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+    }
+
+    private fun onHorizontalSwipeLeft() {
+        // 왼쪽으로 수평 스와이프할 때의 반응
+        Toast.makeText(this, "왼쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+    }
+
+    private fun onVerticalSwipeUp() {
+        // 위로 수직 스와이프할 때의 반응
+//        Toast.makeText(this, "위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun onVerticalSwipeDown() {
+        // 아래로 수직 스와이프할 때의 반응
+//        Toast.makeText(this, "아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+    }
+
+    // 대각선 스와이프에 대한 예제 함수
+    private fun onDiagonalSwipeBottomRight() {
+        // 오른쪽 아래 대각선 방향으로 스와이프할 때의 반응
+        Toast.makeText(this, "오른쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+    }
+    private fun onDiagonalSwipeTopRight() {
+        // 오른쪽 위 대각선 방향으로 스와이프할 때의 반응
+        Toast.makeText(this, "오른쪽 위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+    }
+
+    private fun onDiagonalSwipeBottomLeft() {
+        // 왼쪽 아래 대각선 방향으로 스와이프할 때의 반응
+        Toast.makeText(this, "왼쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+    }
+    private fun onDiagonalSwipeTopLeft() {
+        // 왼쪽 위 대각선 방향으로 스와이프할 때의 반응
+        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
     }
 
     private fun registerReceivers() {
