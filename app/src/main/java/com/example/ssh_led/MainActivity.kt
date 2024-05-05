@@ -227,13 +227,13 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun onHorizontalSwipeRight() {
-        Toast.makeText(this, "오른쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "오른쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
         sendSignal("Right Blinker Activated")
     }
 
     private fun onHorizontalSwipeLeft() {
-        Toast.makeText(this, "왼쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "왼쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
         sendSignal("Left Blinker Activated")
     }
@@ -252,18 +252,18 @@ class MainActivity : AppCompatActivity() {
     // 대각선 스와이프에 대한 예제 함수
     private fun onDiagonalSwipeBottomRight() {
         // 오른쪽 아래 대각선 방향으로 스와이프할 때의 반응
-        Toast.makeText(this, "오른쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "오른쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
     }
     private fun onDiagonalSwipeTopRight() {
         // 오른쪽 위 대각선 방향으로 스와이프할 때의 반응
-        Toast.makeText(this, "오른쪽 위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "오른쪽 위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
     }
 
     private fun onDiagonalSwipeBottomLeft() {
         // 왼쪽 아래 대각선 방향으로 스와이프할 때의 반응
-        Toast.makeText(this, "왼쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
+//        Toast.makeText(this, "왼쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
     }
     private fun onDiagonalSwipeTopLeft() {
@@ -325,9 +325,11 @@ class MainActivity : AppCompatActivity() {
         recButton.isSelected = isRecording
         if (isRecording) {
             recButton.startAnimation(blinkAnimation)
+            Toast.makeText(this, "녹화를 시작 합니다.", Toast.LENGTH_SHORT).show()
             sendSignal("START_RECORDING")
         } else {
             recButton.clearAnimation()
+            Toast.makeText(this, "녹화를 중지 합니다.", Toast.LENGTH_SHORT).show()
             sendSignal("STOP_RECORDING")
         }
     }
