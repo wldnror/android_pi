@@ -3,40 +3,51 @@ package com.example.ssh_led
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import android.util.Log
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import java.util.LinkedList
+import java.util.Queue
 
 class NetworkScanService : Service() {
-    private val CHANNEL_ID = "NetworkScanServiceChannel"
     private val udpPort = 12345
-    private val displayedIpAddresses = HashSet<String>()
-    private var scanNotificationId = -1
-    private var isServiceInForeground = false
+    private lateinit var handler: Handler
+    private lateinit var handlerThread: HandlerThread // 클래스 변수로 선언
+    private var lastUpdateTime = 0L
+    private var lastIPAddress: String? = null
+    private var lastRecordStatus: String? = null  // 마지막으로 알림된 IP 주소 저장
+    private var messageQueue: Queue<String> = LinkedList()
 
     override fun onCreate() {
         super.onCreate()
+        handlerThread = HandlerThread("NetworkThread").apply {
+            start()
+        }
+        handler = Handler(handlerThread.looper)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
-                CHANNEL_ID,
-                "네트워크 스캔 서비스 채널",
+            val channel = NotificationChannel(
+                "service_channel",
+                "Service Channel",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(serviceChannel)
+            manager.createNotificationChannel(channel)
         }
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+        startForegroundServiceWithNotification()
         val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
 
         Thread {
@@ -50,29 +61,28 @@ class NetworkScanService : Service() {
             }
         }.start()
 
-    val pendingIntent: PendingIntent = Intent(this, MainActivity::class.java).let { notificationIntent ->
-            PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        }
-
-        // 서비스가 이미 포그라운드에 있는지 확인
-        if (!isServiceInForeground) {
-            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("네트워크 스캔 서비스")
-                .setContentText("라즈베리 파이 장치를 스캔 중입니다")
-                .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .build()
-
-            startForeground(1, notification)
-            isServiceInForeground = true
-        }
-
+        startSignalSending()
         listenForUdpBroadcast()
 
         return START_NOT_STICKY
     }
 
+    private fun startForegroundServiceWithNotification() {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationBuilder = Notification.Builder(this, "service_channel")
+            .setContentTitle("용굴라이더와 연결되지 않았습니다.")
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+
+        startForeground(1, notificationBuilder.build())
+    }
+
+    private fun startSignalSending() {
+        handler.postDelayed({
+            sendSignal("REQUEST_IP")
+            sendSignal("REQUEST_RECORDING_STATUS")
+            startSignalSending()  // 재귀적으로 반복
+        }, 5000)  // 5초 후에 다시 실행
+    }
 
     private fun sendSignal(signal: String) {
         try {
@@ -92,73 +102,100 @@ class NetworkScanService : Service() {
         Thread {
             try {
                 val socket = DatagramSocket(null).apply {
-                    reuseAddress = true  // 포트 재사용 허용
-                    bind(java.net.InetSocketAddress(udpPort))  // 명시적으로 소켓을 포트에 바인드
+                    reuseAddress = true
+                    bind(java.net.InetSocketAddress(udpPort))
                 }
 
-                socket.use {
-                    val buffer = ByteArray(1024)
-                    while (true) {
-                        val packet = DatagramPacket(buffer, buffer.size)
-                        it.receive(packet)
-                        val receivedText = String(packet.data, 0, packet.length).trim()
-                        Log.d("NetworkScanService", "UDP 방송 수신: $receivedText")
+                val buffer = ByteArray(1024)
+                while (true) {
+                    val packet = DatagramPacket(buffer, buffer.size) // packet 변수 정의
+                    socket.receive(packet)
+                    val receivedText = String(packet.data, 0, packet.length).trim() // receivedText 정의
+                    Log.d("NetworkScanService", "Received UDP packet: $receivedText")
 
-                        // IP 주소가 수신된 경우 푸시 알림으로 표시
-                        if (receivedText.startsWith("IP:")) {
-                            val ipAddress = receivedText.substring(3)
-                            showIpAddressNotification(ipAddress)
-                        }
-
-                        val updateIntent = if (receivedText.startsWith("IP:")) {
-                            Intent("UPDATE_IP_ADDRESS").apply { putExtra("ip_address", receivedText.substring(3)) }
-                        } else {
-                            Intent("UPDATE_RECORDING_STATUS").apply { putExtra("recording_status", receivedText) }
-                        }
-                        LocalBroadcastManager.getInstance(this@NetworkScanService).sendBroadcast(updateIntent)
+                    if (receivedText.startsWith("IP:")) {
+                        // 메시지에서 "-" 기준으로 IP 주소만 추출
+                        val ipAddress = receivedText.substringAfter("IP:").substringBefore(" -")
+                        val ipIntent = Intent("UPDATE_IP_ADDRESS")
+                        ipIntent.putExtra("ip_address", ipAddress)
+                        updateNotification(ipAddress, null) // IP 연결 알림 업데이트
+                        LocalBroadcastManager.getInstance(this).sendBroadcast(ipIntent)
+                    } else if (receivedText == "RECORDING" || receivedText == "NOT_RECORDING") {
+                        val recIntent = Intent("UPDATE_RECORDING_STATUS")
+                        recIntent.putExtra("recording_status", receivedText)
+                        LocalBroadcastManager.getInstance(this).sendBroadcast(recIntent)
                     }
+
+                    // 메시지 큐에 추가
+                    synchronized(messageQueue) {
+                        messageQueue.add(receivedText)
+                    }
+
+                    // 메시지 큐 처리
+                    processMessageQueue()
                 }
             } catch (e: IOException) {
                 e.printStackTrace()
-                Log.e("NetworkScanService", "UDP 방송 수신 중 오류 발생: ", e)
+                Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
             }
         }.start()
     }
 
-    // IP 주소를 푸시 알림으로 표시하는 함수
-    private fun showIpAddressNotification(ipAddress: String) {
-        // 이미 표시된 IP 주소인 경우 중복으로 간주하고 푸시 알림을 표시하지 않음
-        if (displayedIpAddresses.contains(ipAddress)) {
+    private fun processMessageQueue() {
+        var latestIPMessage: String? = null
+        var latestRecordMessage: String? = null
+
+        synchronized(messageQueue) {
+            while (messageQueue.isNotEmpty()) {
+                val message = messageQueue.poll()
+                if (message.startsWith("IP:")) {
+                    latestIPMessage = message
+                } else if (message == "RECORDING" || message == "NOT_RECORDING") {
+                    latestRecordMessage = message
+                }
+            }
+        }
+
+        if (latestIPMessage != null || latestRecordMessage != null) {
+            updateNotification(latestIPMessage, latestRecordMessage)
+        }
+    }
+
+    private fun updateNotification(ipAddress: String?, recordStatus: String?) {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastUpdateTime < 1000) {
+            return // 최근 업데이트 이후 1초 이내의 알림은 무시
+        }
+        lastUpdateTime = currentTime
+
+        // 상태 변화가 없으면 업데이트하지 않음
+        if (ipAddress == lastIPAddress && recordStatus == lastRecordStatus) {
             return
         }
 
-        // 새로운 IP 주소를 표시했으므로 목록에 추가
-        displayedIpAddresses.add(ipAddress)
+        // 새로운 상태로 업데이트
+        lastIPAddress = ipAddress
+        lastRecordStatus = recordStatus
 
-        // 스캔 중인 푸시 알림이 이미 표시된 경우 해당 푸시 알림을 업데이트하여 새로운 IP 주소를 표시하고,
-        // 그렇지 않은 경우 새로운 푸시 알림을 표시합니다.
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationId = 1  // 모든 상태 알림에 대해 동일 ID 사용
+        val notificationBuilder = Notification.Builder(this, "service_channel")
 
-        val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("연결된 IP 주소")
-            .setContentText("연결된 IP 주소: $ipAddress")
-            .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (scanNotificationId != -1) {
-            // 스캔 중인 푸시 알림이 이미 표시된 경우 해당 푸시 알림을 업데이트하여 새로운 IP 주소를 표시합니다.
-            notificationManager.notify(scanNotificationId, notificationBuilder.build())
-        } else {
-            // 스캔 중인 푸시 알림이 표시되지 않은 경우 새로운 푸시 알림을 표시합니다.
-            scanNotificationId = 2
-            notificationManager.notify(scanNotificationId, notificationBuilder.build())
+        if (ipAddress != null) {
+            // IP 주소가 존재하는 경우에만 "IP 연결됨" 알림 표시
+            notificationBuilder.setContentTitle("IP 연결됨").setContentText("연결된 IP: $ipAddress")
+            notificationBuilder.setSmallIcon(android.R.drawable.stat_notify_sync)
+            startForeground(notificationId, notificationBuilder.build())
         }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
+        handlerThread.quitSafely() // 이제 handlerThread는 클래스 수준에서 선언된 변수이므로 접근 가능
     }
 }

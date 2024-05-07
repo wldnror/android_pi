@@ -9,9 +9,9 @@ android {
 
     defaultConfig {
         applicationId = "com.example.ssh_led"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        versionCode = 18
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     private val recordingStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val isRecordingUpdate = intent?.getStringExtra("recording_status")
@@ -67,6 +68,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -275,6 +277,7 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(ipReceiver, IntentFilter("UPDATE_IP_ADDRESS"))
         LocalBroadcastManager.getInstance(this).registerReceiver(recordingStatusReceiver, IntentFilter("UPDATE_RECORDING_STATUS"))
     }
+
 
     private fun initiateServices() {
         Intent(this, NetworkScanService::class.java).also {
