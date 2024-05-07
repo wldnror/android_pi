@@ -26,6 +26,8 @@ import kotlinx.coroutines.*
 import android.os.Looper
 import android.widget.ProgressBar
 
+
+
 class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
 
@@ -276,6 +278,12 @@ class MainActivity : AppCompatActivity() {
     private fun registerReceivers() {
         LocalBroadcastManager.getInstance(this).registerReceiver(ipReceiver, IntentFilter("UPDATE_IP_ADDRESS"))
         LocalBroadcastManager.getInstance(this).registerReceiver(recordingStatusReceiver, IntentFilter("UPDATE_RECORDING_STATUS"))
+    }
+    private fun updateIpSearchStatus() {
+        val status = "IP 주소를 검색 중입니다$loadingDots"
+        ipAddressTextView.text = status
+        // 상태를 SharedPreferences에 저장
+        prefs.edit().putString("ip_search_status", status).apply()
     }
 
 

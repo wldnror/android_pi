@@ -17,8 +17,6 @@ import java.net.InetAddress
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
-
-
 class NetworkScanService : Service() {
     private val udpPort = 12345
     private val handlerThread = HandlerThread("NetworkThread")
@@ -61,6 +59,7 @@ class NetworkScanService : Service() {
 
         return START_NOT_STICKY
     }
+
     private fun startForegroundServiceWithNotification() {
         val prefs = getSharedPreferences("NetworkPreferences", Context.MODE_PRIVATE)
         val lastKnownIP = prefs.getString("last_ip_address", "")
@@ -168,20 +167,24 @@ class NetworkScanService : Service() {
 
         lastIpNotification = ipPart  // 새로운 IP로 업데이트
 
+        val prefs = getSharedPreferences("NetworkPreferences", Context.MODE_PRIVATE)
+        val lastKnownIP = prefs.getString("last_ip_address", "")
+
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notificationId = 1
-        val notificationBuilder = if (ipAddress != null) {
-            val ipPart = ipAddress.split("-").first().trim() // "-" 기호를 기준으로 앞 부분만 사용
-            Notification.Builder(this, "service_channel")
+        val notificationBuilder = Notification.Builder(this, "service_channel")
+
+        if (!lastKnownIP.isNullOrEmpty()) {
+            notificationBuilder
                 .setContentTitle("IP 연결됨")
-                .setContentText("연결된 IP: $ipPart") // 수정된 IP 부분을 표시
+                .setContentText("연결된 IP: $lastKnownIP")
                 .setSmallIcon(android.R.drawable.stat_notify_sync)
         } else {
-            Notification.Builder(this, "service_channel")
-                .setContentTitle("연결 실패")
-                .setContentText("용굴라이더와 연결이 되지 않았습니다.")
-                .setSmallIcon(android.R.drawable.stat_notify_error)
+            notificationBuilder
+                .setContentTitle("용굴라이더와 연결되지 않았습니다.")
+                .setSmallIcon(android.R.drawable.stat_notify_sync)
         }
+
+        val notificationId = 1
         startForeground(notificationId, notificationBuilder.build())
     }
 
