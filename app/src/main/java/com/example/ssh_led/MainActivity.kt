@@ -26,8 +26,6 @@ import kotlinx.coroutines.*
 import android.os.Looper
 import android.widget.ProgressBar
 
-
-
 class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
 
@@ -61,7 +59,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     private val recordingStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val isRecordingUpdate = intent?.getStringExtra("recording_status")
@@ -71,14 +68,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         prefs = getSharedPreferences("SoundPreferences", Context.MODE_PRIVATE)
         selectedSoundId = prefs.getInt("selected_sound_id", -1)
-
         setupViews()
         setupListeners()
         registerReceivers()
@@ -103,12 +97,12 @@ class MainActivity : AppCompatActivity() {
 
     fun onRightBlinkerClicked(view: View) {
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
-        sendSignal("Right Blinker Activated")
+        sendSignal("Right Blinker Activated", true)
     }
 
     fun onLeftBlinkerClicked(view: View) {
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
-        sendSignal("Left Blinker Activated")
+        sendSignal("Left Blinker Activated", true)
     }
 
     private fun blinkerSequence(first: Int, second: Int, third: Int) {
@@ -149,6 +143,7 @@ class MainActivity : AppCompatActivity() {
         recButton.setOnClickListener {
             isRecording = !isRecording
             handleRecording()
+            sendSignal("RECORDING_ACTION", true)
         }
 
         hornImageView.setOnClickListener {
@@ -197,6 +192,7 @@ class MainActivity : AppCompatActivity() {
 
         return x >= xStart && x <= xEnd && y >= yStart && y <= yEnd
     }
+
     private fun handleSwipe(x1: Float, y1: Float, x2: Float, y2: Float) {
         val deltaX = x2 - x1
         val deltaY = y2 - y1
@@ -229,19 +225,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     private fun onHorizontalSwipeRight() {
 //        Toast.makeText(this, "오른쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
-        sendSignal("Right Blinker Activated")
+        sendSignal("Right Blinker Activated", true)
     }
 
     private fun onHorizontalSwipeLeft() {
 //        Toast.makeText(this, "왼쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
-        sendSignal("Left Blinker Activated")
+        sendSignal("Left Blinker Activated", true)
     }
-
 
     private fun onVerticalSwipeUp() {
         // 위로 수직 스와이프할 때의 반응
@@ -259,6 +253,7 @@ class MainActivity : AppCompatActivity() {
 //        Toast.makeText(this, "오른쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
     }
+
     private fun onDiagonalSwipeTopRight() {
         // 오른쪽 위 대각선 방향으로 스와이프할 때의 반응
 //        Toast.makeText(this, "오른쪽 위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
@@ -270,6 +265,7 @@ class MainActivity : AppCompatActivity() {
 //        Toast.makeText(this, "왼쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
     }
+
     private fun onDiagonalSwipeTopLeft() {
         // 왼쪽 위 대각선 방향으로 스와이프할 때의 반응
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
@@ -279,13 +275,13 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(ipReceiver, IntentFilter("UPDATE_IP_ADDRESS"))
         LocalBroadcastManager.getInstance(this).registerReceiver(recordingStatusReceiver, IntentFilter("UPDATE_RECORDING_STATUS"))
     }
+
     private fun updateIpSearchStatus() {
         val status = "IP 주소를 검색 중입니다$loadingDots"
         ipAddressTextView.text = status
         // 상태를 SharedPreferences에 저장
         prefs.edit().putString("ip_search_status", status).apply()
     }
-
 
     private fun initiateServices() {
         Intent(this, NetworkScanService::class.java).also {
@@ -337,11 +333,11 @@ class MainActivity : AppCompatActivity() {
         if (isRecording) {
             recButton.startAnimation(blinkAnimation)
             Toast.makeText(this, "녹화를 시작 합니다.", Toast.LENGTH_SHORT).show()
-            sendSignal("START_RECORDING")
+            sendSignal("START_RECORDING", true)
         } else {
             recButton.clearAnimation()
             Toast.makeText(this, "녹화를 중지 합니다.", Toast.LENGTH_SHORT).show()
-            sendSignal("STOP_RECORDING")
+            sendSignal("STOP_RECORDING", true)
         }
     }
 
@@ -367,11 +363,12 @@ class MainActivity : AppCompatActivity() {
         scope.cancel() // Cancel coroutines when the activity is destroyed
     }
 
-    private fun sendSignal(signal: String) {
-        Intent(this, NetworkScanService::class.java).also { intent ->
-            intent.putExtra("signal", signal)
-            startService(intent)
+    private fun sendSignal(signal: String, userAction: Boolean = false) {
+        val intent = Intent(this, NetworkScanService::class.java).apply {
+            putExtra("signal", signal)
+            putExtra("userAction", userAction)
         }
+        startService(intent)
     }
 
     private fun checkAndRequestNotificationPermission() {
