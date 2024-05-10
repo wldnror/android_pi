@@ -183,6 +183,10 @@ class NetworkScanService : Service() {
         val lastKnownIP = readIpFromCache()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        val intent = Intent("UPDATE_CONNECTION_STATUS")
+        intent.putExtra("is_connected", isConnected)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+
         if (isConnected && !lastKnownIP.isNullOrEmpty()) {
             // 연결된 IP로 알림 업데이트
             updateNotification(lastKnownIP)
