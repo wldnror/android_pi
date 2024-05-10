@@ -53,9 +53,20 @@ class MainActivity : AppCompatActivity() {
     private val ipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val ip = intent?.getStringExtra("ip_address")
-            ipAddressTextView.text = ip ?: "IP 주소를 받아오지 못했습니다."
-            hasIP = true
-            ipUpdateHandler.removeCallbacks(ipUpdateRunnable)
+            if (ip == "DISCONNECTED") {
+                startIpSearchAnimation()
+            } else {
+                hasIP = true
+                ipUpdateHandler.removeCallbacks(ipUpdateRunnable)
+                ipAddressTextView.text = ip ?: "IP 주소를 받아오지 못했습니다."
+            }
+        }
+    }
+
+    private fun startIpSearchAnimation() {
+        if (!hasIP) {  // 중복 애니메이션 방지
+            hasIP = false
+            ipUpdateHandler.post(ipUpdateRunnable)
         }
     }
 

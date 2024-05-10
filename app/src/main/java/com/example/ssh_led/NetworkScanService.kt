@@ -117,7 +117,7 @@ class NetworkScanService : Service() {
             sendSignal("REQUEST_IP")
             sendSignal("REQUEST_RECORDING_STATUS")
             startSignalSending()
-        }, 1000)
+        }, 500)
     }
 
     private fun sendSignal(signal: String) {
@@ -170,7 +170,7 @@ class NetworkScanService : Service() {
             schedule(object : TimerTask() {
                 override fun run() {
                     // 타이머가 만료될 때만 isDisconnected를 true로 설정
-                    if (System.currentTimeMillis() - lastUpdateTime >= 5000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 1000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
@@ -183,21 +183,22 @@ class NetworkScanService : Service() {
         val lastKnownIP = readIpFromCache()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        val intent = Intent("UPDATE_CONNECTION_STATUS")
-        intent.putExtra("is_connected", isConnected)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-
         if (isConnected && !lastKnownIP.isNullOrEmpty()) {
             // 연결된 IP로 알림 업데이트
             updateNotification(lastKnownIP)
         } else if (!isConnected && lastIpNotification != "DISCONNECTED") {
-            // 연결 끊김 알림 업데이트 (연결 끊김 상태가 변경되었을 때만)
+            // 연결 끊김 상태로 알림을 업데이트 (연결 끊김 상태가 변경되었을 때만)
             val notificationBuilder = Notification.Builder(this, "service_channel").apply {
                 setContentTitle("용굴라이더와 연결되지 않았습니다.")
                 setSmallIcon(android.R.drawable.stat_notify_sync)
             }
             startForeground(1, notificationBuilder.build())
-            lastIpNotification = "DISCONNECTED"  // 상태 업데이트
+            lastIpNotification = "DISCONNECTED"
+            // 연결 끊김 상태 방송
+            val intent = Intent("UPDATE_IP_ADDRESS").apply {
+                putExtra("ip_address", "DISCONNECTED")
+            }
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
         }
     }
 
