@@ -170,12 +170,12 @@ class NetworkScanService : Service() {
             schedule(object : TimerTask() {
                 override fun run() {
                     // 타이머가 만료될 때만 isDisconnected를 true로 설정
-                    if (System.currentTimeMillis() - lastUpdateTime >= 1000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 3000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
                 }
-            }, 1000) // 5초 후에 작업 실행
+            }, 300) // 1초 후에 작업 실행
         }
     }
 
