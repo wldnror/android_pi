@@ -10,7 +10,10 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import java.io.BufferedReader
+import java.io.File
 import java.io.IOException
+import java.io.InputStreamReader
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -82,22 +85,31 @@ class NetworkScanService : Service() {
     }
 
     private fun startForegroundServiceWithNotification() {
-        val prefs = getSharedPreferences("NetworkPreferences", Context.MODE_PRIVATE)
-        val lastKnownIP = prefs.getString("last_ip_address", "")
-        val notificationBuilder = Notification.Builder(this, "service_channel")
-
+        val lastKnownIP = readIpFromCache()
         if (!lastKnownIP.isNullOrEmpty()) {
-            notificationBuilder
-                .setContentTitle("IP 연결됨")
-                .setContentText("연결된 IP: $lastKnownIP")
-                .setSmallIcon(android.R.drawable.stat_notify_sync)
+            // IP 주소가 캐시에 있으면, 서버에 핑을 보내 연결 상태를 확인합니다.
+            if (isServerReachable(lastKnownIP)) {
+                val notificationBuilder = Notification.Builder(this, "service_channel")
+                    .setContentTitle("IP 연결됨")
+                    .setContentText("연결된 IP: $lastKnownIP")
+                    .setSmallIcon(android.R.drawable.stat_notify_sync)
+                startForeground(1, notificationBuilder.build())
+                lastIpNotification = lastKnownIP
+            } else {
+                // 핑 실패 시 연결 끊김 상태로 알림을 설정합니다.
+                handleDisconnectedState()
+            }
         } else {
-            notificationBuilder
-                .setContentTitle("용굴라이더와 연결되지 않았습니다.")
-                .setSmallIcon(android.R.drawable.stat_notify_sync)
+            // 캐시에 IP 주소가 없으면 바로 연결 끊김 알림을 표시합니다.
+            handleDisconnectedState()
         }
+    }
+    private fun handleDisconnectedState() {
+        val notificationBuilder = Notification.Builder(this, "service_channel")
+            .setContentTitle("용굴라이더와 연결되지 않았습니다.")
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
         startForeground(1, notificationBuilder.build())
-        lastIpNotification = if (lastKnownIP.isNullOrEmpty()) "DISCONNECTED" else lastKnownIP
+        lastIpNotification = "DISCONNECTED"
     }
 
     private fun startSignalSending() {
@@ -163,13 +175,12 @@ class NetworkScanService : Service() {
                         updateConnectionStatus(false)
                     }
                 }
-            }, 10000) // 5초 후에 작업 실행
+            }, 1000) // 5초 후에 작업 실행
         }
     }
 
     private fun updateConnectionStatus(isConnected: Boolean) {
-        val prefs = getSharedPreferences("NetworkPreferences", Context.MODE_PRIVATE)
-        val lastKnownIP = prefs.getString("last_ip_address", "")
+        val lastKnownIP = readIpFromCache()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (isConnected && !lastKnownIP.isNullOrEmpty()) {
@@ -193,10 +204,9 @@ class NetworkScanService : Service() {
         if (parts.size == 2) {
             val ipInfo = parts[0].substring(3).trim()
             val status = parts[1].trim()
-            val prefs = getSharedPreferences("NetworkPreferences", Context.MODE_PRIVATE)
 
-            // IP 정보를 저장하고 관련 알림을 업데이트합니다.
-            prefs.edit().putString("last_ip_address", ipInfo).apply()
+            // IP 정보를 파일에 저장하고 관련 알림을 업데이트합니다.
+            saveIpToCache(ipInfo)
             val ipIntent = Intent("UPDATE_IP_ADDRESS").apply { putExtra("ip_address", ipInfo) }
             LocalBroadcastManager.getInstance(this).sendBroadcast(ipIntent)
             updateNotification(ipInfo)
@@ -207,13 +217,12 @@ class NetworkScanService : Service() {
 
     private fun updateNotification(ipAddress: String?) {
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastUpdateTime < 5000) return
+        if (currentTime - lastUpdateTime < 1000) return
         lastUpdateTime = currentTime
         val ipPart = ipAddress?.split("-")?.first()?.trim()
         if (lastIpNotification == ipPart) return
         lastIpNotification = ipPart
-        val prefs = getSharedPreferences("NetworkPreferences", Context.MODE_PRIVATE)
-        val lastKnownIP = prefs.getString("last_ip_address", "")
+        val lastKnownIP = readIpFromCache()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notificationBuilder = Notification.Builder(this, "service_channel").apply {
             if (!lastKnownIP.isNullOrEmpty()) {
@@ -222,10 +231,46 @@ class NetworkScanService : Service() {
                 setSmallIcon(android.R.drawable.stat_notify_sync)
             } else {
                 setContentTitle("용굴라이더와 연결되지 않았습니다.")
-                setSmallIcon(android.R.drawable.stat_notify_sync)
+                    .setSmallIcon(android.R.drawable.stat_notify_sync)
             }
         }
         startForeground(1, notificationBuilder.build())
+    }
+
+    private fun saveIpToCache(ipAddress: String) {
+        File(cacheDir, "last_ip_address").writeText(ipAddress)
+    }
+
+    private fun readIpFromCache(): String? {
+        return try {
+            File(cacheDir, "last_ip_address").readText()
+        } catch (e: IOException) {
+            Log.e("NetworkScanService", "Error reading IP from cache", e)
+            null
+        }
+    }
+
+    private fun isServerReachable(ipAddress: String): Boolean {
+        try {
+            val process = Runtime.getRuntime().exec("/system/bin/ping -c 1 $ipAddress")
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            var line: String?
+            val output = StringBuilder()
+            while (reader.readLine().also { line = it } != null) {
+                output.append(line + "\n")
+            }
+            reader.close()
+
+            // 핑 명령의 결과를 로그로 출력
+            Log.d("Ping", "Ping output: $output")
+
+            // 프로세스가 0을 반환하면 핑이 성공한 것으로 간주
+            val exitVal = process.waitFor()
+            return (exitVal == 0)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
