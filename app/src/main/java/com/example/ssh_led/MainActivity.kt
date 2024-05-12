@@ -54,21 +54,34 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val ip = intent?.getStringExtra("ip_address")
             if (ip == "DISCONNECTED") {
-                startIpSearchAnimation()
-            } else {
+                hasIP = false
+                updateRecordingUI(isRecording)  // 연결이 끊겼을 때 UI 업데이트
+                startIpSearchAnimation()  // IP 검색 애니메이션을 계속 실행
+            } else if (ip != null) {
+                ipAddressTextView.text = ip  // 연결된 IP 주소 업데이트
                 hasIP = true
-                ipUpdateHandler.removeCallbacks(ipUpdateRunnable)
-                ipAddressTextView.text = ip ?: "IP 주소를 받아오지 못했습니다."
+                updateRecordingUI(isRecording)  // 연결이 되었을 때 UI 업데이트
             }
         }
     }
 
+    private var isAnimating = false // 애니메이션 상태를 저장하는 변수
+
     private fun startIpSearchAnimation() {
-        if (!hasIP) {  // 중복 애니메이션 방지
-            hasIP = false
-            ipUpdateHandler.post(ipUpdateRunnable)
+        ipUpdateHandler.removeCallbacks(ipUpdateRunnable)
+        ipUpdateRunnable = object : Runnable {
+            override fun run() {
+                if (!hasIP) {
+                    if (loadingDots.length >= 3) loadingDots = ""
+                    loadingDots += "."
+                    ipAddressTextView.text = "IP 주소를 검색 중입니다$loadingDots"
+                    ipUpdateHandler.postDelayed(this, 550)  // 계속해서 애니메이션을 유지
+                }
+            }
         }
+        ipUpdateHandler.post(ipUpdateRunnable)
     }
+
 
     private val recordingStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -152,9 +165,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         recButton.setOnClickListener {
-            isRecording = !isRecording
-            handleRecording()
-            sendSignal("RECORDING_ACTION", true)
+            if (!hasIP) {
+                // 서버와 연결되어 있지 않을 경우
+                Toast.makeText(this, "용굴라이더와 연결 후 시도해 주세요.", Toast.LENGTH_LONG).show()
+                recButton.clearAnimation()  // 서버와 연결이 없으면 애니메이션 중지
+            } else {
+                // 서버와 연결되어 있을 경우
+                isRecording = !isRecording
+                handleRecording()
+                sendSignal(if (isRecording) "START_RECORDING" else "STOP_RECORDING", true)
+            }
         }
 
         hornImageView.setOnClickListener {
@@ -172,7 +192,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 스와이프 리스너 설정
+
+    // 스와이프 리스너 설정
         findViewById<View>(R.id.main_layout).setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -353,14 +374,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateRecordingUI(isRecordingUpdate: Boolean) {
-        if (isRecording != isRecordingUpdate) {
-            isRecording = isRecordingUpdate
-            recButton.isSelected = isRecording
-            if (isRecording) {
-                recButton.startAnimation(blinkAnimation)
-            } else {
-                recButton.clearAnimation()
+        if (hasIP) {
+            if (isRecording != isRecordingUpdate) {
+                isRecording = isRecordingUpdate
+                recButton.isSelected = isRecording
+                if (isRecording) {
+                    recButton.startAnimation(blinkAnimation)
+                } else {
+                    recButton.clearAnimation()
+                }
             }
+        } else {
+            // 서버와 연결이 끊겼을 경우 녹화 중지 상태로 리셋
+            isRecording = false  // 녹화 상태를 중지로 설정
+            recButton.isSelected = false  // 버튼의 선택 상태를 비활성화
+            recButton.clearAnimation()  // 애니메이션 중지
         }
     }
 

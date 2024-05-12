@@ -90,7 +90,7 @@ class NetworkScanService : Service() {
             // IP 주소가 캐시에 있으면, 서버에 핑을 보내 연결 상태를 확인합니다.
             if (isServerReachable(lastKnownIP)) {
                 val notificationBuilder = Notification.Builder(this, "service_channel")
-                    .setContentTitle("IP 연결됨")
+                    .setContentTitle("용굴라이더와 연결됨2")
                     .setContentText("연결된 IP: $lastKnownIP")
                     .setSmallIcon(android.R.drawable.stat_notify_sync)
                 startForeground(1, notificationBuilder.build())
@@ -117,7 +117,7 @@ class NetworkScanService : Service() {
             sendSignal("REQUEST_IP")
             sendSignal("REQUEST_RECORDING_STATUS")
             startSignalSending()
-        }, 500)
+        }, 1000)
     }
 
     private fun sendSignal(signal: String) {
@@ -170,16 +170,24 @@ class NetworkScanService : Service() {
             schedule(object : TimerTask() {
                 override fun run() {
                     // 타이머가 만료될 때만 isDisconnected를 true로 설정
-                    if (System.currentTimeMillis() - lastUpdateTime >= 3000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 5000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
                 }
-            }, 300) // 1초 후에 작업 실행
+            }, 1000) // 5초 후에 작업 실행
         }
     }
 
     private fun updateConnectionStatus(isConnected: Boolean) {
+        val ipIntent = Intent("UPDATE_IP_ADDRESS")
+        if (isConnected) {
+            val ip = readIpFromCache() ?: "Unknown IP"
+            ipIntent.putExtra("ip_address", ip)
+        } else {
+            ipIntent.putExtra("ip_address", "DISCONNECTED")
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(ipIntent)
         val lastKnownIP = readIpFromCache()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -187,18 +195,13 @@ class NetworkScanService : Service() {
             // 연결된 IP로 알림 업데이트
             updateNotification(lastKnownIP)
         } else if (!isConnected && lastIpNotification != "DISCONNECTED") {
-            // 연결 끊김 상태로 알림을 업데이트 (연결 끊김 상태가 변경되었을 때만)
+            // 연결 끊김 알림 업데이트 (연결 끊김 상태가 변경되었을 때만)
             val notificationBuilder = Notification.Builder(this, "service_channel").apply {
                 setContentTitle("용굴라이더와 연결되지 않았습니다.")
                 setSmallIcon(android.R.drawable.stat_notify_sync)
             }
             startForeground(1, notificationBuilder.build())
-            lastIpNotification = "DISCONNECTED"
-            // 연결 끊김 상태 방송
-            val intent = Intent("UPDATE_IP_ADDRESS").apply {
-                putExtra("ip_address", "DISCONNECTED")
-            }
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+            lastIpNotification = "DISCONNECTED"  // 상태 업데이트
         }
     }
 
@@ -231,7 +234,7 @@ class NetworkScanService : Service() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notificationBuilder = Notification.Builder(this, "service_channel").apply {
             if (!lastKnownIP.isNullOrEmpty()) {
-                setContentTitle("IP 연결됨")
+                setContentTitle("용굴라이더와 연결됨1")
                 setContentText("연결된 IP: $lastKnownIP")
                 setSmallIcon(android.R.drawable.stat_notify_sync)
             } else {
