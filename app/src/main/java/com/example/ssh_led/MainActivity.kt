@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
                     if (loadingDots.length >= 3) loadingDots = ""
                     loadingDots += "."
                     ipAddressTextView.text = "IP 주소를 검색 중입니다$loadingDots"
-                    ipUpdateHandler.postDelayed(this, 500)
+                    ipUpdateHandler.postDelayed(this, 200)
                 }
             }
         }
