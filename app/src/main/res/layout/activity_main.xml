@@ -8,12 +8,13 @@
     tools:context=".MainActivity">
 
     <!-- 기존 RelativeLayout을 DrawerLayout의 자식으로 내부에 배치 -->
+
+    <!-- 네비게이션 드로어 -->
     <RelativeLayout
+        android:id="@+id/main_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#FFF"
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/main_layout">
+        android:background="#FFF">
 
         <!-- IP 주소 텍스트 -->
         <TextView
@@ -22,16 +23,16 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_marginTop="20dp"
-            android:textSize="18sp"
-            android:textColor="#FF5722"
-            android:textStyle="bold"
             android:background="@android:color/white"
-            android:padding="10dp"
-            android:elevation="4dp"
-            android:text="IP 주소를 검색 중입니다"
             android:drawableLeft="@android:drawable/ic_menu_search"
             android:drawablePadding="10dp"
-            android:gravity="center_vertical"/>
+            android:elevation="4dp"
+            android:gravity="center_vertical"
+            android:padding="10dp"
+            android:text="IP 주소를 검색 중입니다"
+            android:textColor="#FF5722"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
         <!-- 로딩 인디케이터 -->
         <ProgressBar
@@ -40,7 +41,7 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
             android:indeterminate="true"
-            android:visibility="gone"/>  <!-- 처음에는 보이지 않도록 설정 -->
+            android:visibility="gone" />  <!-- 처음에는 보이지 않도록 설정 -->
 
         <!-- 기타 UI 요소들 -->
         <Button
@@ -54,14 +55,14 @@
             android:background="@drawable/rec_button_selector"
             android:text="REC"
             android:textColor="@android:color/black"
-            android:textStyle="bold"/>
+            android:textStyle="bold" />
 
         <ImageView
             android:id="@+id/horn_button"
             android:layout_width="100dp"
             android:layout_height="100dp"
-            android:layout_centerHorizontal="true"
             android:layout_below="@+id/ipAddressTextView"
+            android:layout_centerHorizontal="true"
             android:layout_marginTop="391dp"
             app:srcCompat="@drawable/horn_button" />
 
@@ -69,9 +70,9 @@
             android:id="@+id/right_blinker"
             android:layout_width="180dp"
             android:layout_height="300dp"
+            android:layout_alignParentEnd="true"
             android:layout_marginTop="80dp"
             android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
             android:onClick="onRightBlinkerClicked"
             app:srcCompat="@drawable/right_blinker" />
 
@@ -79,8 +80,8 @@
             android:id="@+id/left_blinker"
             android:layout_width="180dp"
             android:layout_height="300dp"
-            android:layout_marginTop="80dp"
             android:layout_marginStart="5dp"
+            android:layout_marginTop="80dp"
             android:onClick="onLeftBlinkerClicked"
             app:srcCompat="@drawable/left_blinker" />
 
@@ -88,24 +89,24 @@
             android:id="@+id/left_blinker_orange_1"
             android:layout_width="180dp"
             android:layout_height="300dp"
-            android:layout_marginTop="80dp"
             android:layout_marginStart="5dp"
+            android:layout_marginTop="80dp"
             app:srcCompat="@drawable/left_blinker_orange_1" />
 
         <ImageView
             android:id="@+id/left_blinker_orange_2"
             android:layout_width="180dp"
             android:layout_height="300dp"
-            android:layout_marginTop="80dp"
             android:layout_marginStart="5dp"
+            android:layout_marginTop="80dp"
             app:srcCompat="@drawable/left_blinker_orange_2" />
 
         <ImageView
             android:id="@+id/left_blinker_orange_3"
             android:layout_width="180dp"
             android:layout_height="300dp"
-            android:layout_marginTop="80dp"
             android:layout_marginStart="5dp"
+            android:layout_marginTop="80dp"
             app:srcCompat="@drawable/left_blinker_orange_3" />
 
 
@@ -113,32 +114,42 @@
             android:id="@+id/right_blinker_orange_1"
             android:layout_width="180dp"
             android:layout_height="300dp"
+            android:layout_alignParentEnd="true"
             android:layout_marginTop="80dp"
             android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
             app:srcCompat="@drawable/right_blinker_orange_1" />
 
         <ImageView
             android:id="@+id/right_blinker_orange_2"
             android:layout_width="180dp"
             android:layout_height="300dp"
+            android:layout_alignParentEnd="true"
             android:layout_marginTop="80dp"
             android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
             app:srcCompat="@drawable/right_blinker_orange_2" />
 
         <ImageView
             android:id="@+id/right_blinker_orange_3"
             android:layout_width="180dp"
             android:layout_height="300dp"
+            android:layout_alignParentEnd="true"
             android:layout_marginTop="80dp"
             android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
             app:srcCompat="@drawable/right_blinker_orange_3" />
+
+        <ToggleButton
+            android:id="@+id/toggleModeButton"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/ipAddressTextView"
+            android:layout_marginTop="290dp"
+            android:layout_centerHorizontal="true"
+            android:checked="false"
+            android:textOff="자동 모드"
+            android:textOn="수동 모드" />
 
     </RelativeLayout>
 
-    <!-- 네비게이션 드로어 -->
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/nav_view"
         android:layout_width="wrap_content"

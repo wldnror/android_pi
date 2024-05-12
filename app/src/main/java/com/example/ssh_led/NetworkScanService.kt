@@ -47,6 +47,7 @@ class NetworkScanService : Service() {
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         val userAction = intent.getBooleanExtra("userAction", false)
+        val modeChange = intent.getStringExtra("modeChange")
         if (!userAction) {
             startForegroundServiceWithNotification()
         }
@@ -82,6 +83,12 @@ class NetworkScanService : Service() {
         }
 
         return START_NOT_STICKY
+    }
+    private fun handleModeChange(mode: String) {
+        when (mode) {
+            "manual" -> sendSignal("ENABLE_MANUAL_MODE")
+            "auto" -> sendSignal("ENABLE_AUTO_MODE")
+        }
     }
 
     private fun startForegroundServiceWithNotification() {

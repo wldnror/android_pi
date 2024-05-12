@@ -25,6 +25,7 @@ import android.widget.Toast
 import kotlinx.coroutines.*
 import android.os.Looper
 import android.widget.ProgressBar
+import android.widget.ToggleButton
 
 class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
@@ -42,6 +43,8 @@ class MainActivity : AppCompatActivity() {
     private var selectedSoundId: Int? = null
     private lateinit var prefs: SharedPreferences
     private var loadingDots = ""
+    private lateinit var toggleModeButton: ToggleButton
+
 
     // 스와이프 감지를 위한 변수
     private var x1: Float = 0.0f
@@ -152,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         recButton = findViewById(R.id.recButton)
         progressBar = findViewById(R.id.progressBar)
         hornImageView = findViewById(R.id.horn_button)
+        toggleModeButton = findViewById(R.id.toggleModeButton)
         blinkAnimation = AnimationUtils.loadAnimation(this, R.anim.blink)
 
         // 블링커 이미지들을 초기에 보이지 않도록 설정
@@ -179,6 +183,13 @@ class MainActivity : AppCompatActivity() {
 
         hornImageView.setOnClickListener {
             playSelectedSound(selectedSoundId)
+        }
+
+        // 토글 버튼 상태 변화에 대한 리스너 설정
+        toggleModeButton.setOnCheckedChangeListener { _, isChecked ->
+            val modeSignal = if (isChecked) "ENABLE_MANUAL_MODE" else "ENABLE_AUTO_MODE"
+            sendSignal(modeSignal, true)  // 변경된 모드 신호를 서비스로 보냄
+            Toast.makeText(this, if (isChecked) "수동 모드로 전환됩니다." else "자동 모드로 전환됩니다.", Toast.LENGTH_SHORT).show()
         }
 
         val navView: NavigationView = findViewById(R.id.nav_view)
@@ -284,23 +295,27 @@ class MainActivity : AppCompatActivity() {
         // 오른쪽 아래 대각선 방향으로 스와이프할 때의 반응
 //        Toast.makeText(this, "오른쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        sendSignal("Right Blinker Activated", true)
     }
 
     private fun onDiagonalSwipeTopRight() {
         // 오른쪽 위 대각선 방향으로 스와이프할 때의 반응
 //        Toast.makeText(this, "오른쪽 위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        sendSignal("Right Blinker Activated", true)
     }
 
     private fun onDiagonalSwipeBottomLeft() {
         // 왼쪽 아래 대각선 방향으로 스와이프할 때의 반응
 //        Toast.makeText(this, "왼쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        sendSignal("Left Blinker Activated", true)
     }
 
     private fun onDiagonalSwipeTopLeft() {
         // 왼쪽 위 대각선 방향으로 스와이프할 때의 반응
         blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        sendSignal("Left Blinker Activated", true)
     }
 
     private fun registerReceivers() {
