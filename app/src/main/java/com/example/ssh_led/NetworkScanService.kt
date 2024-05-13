@@ -24,6 +24,7 @@ import java.util.TimerTask
 
 class NetworkScanService : Service() {
     private val udpPort = 12345
+
     private val handlerThread = HandlerThread("NetworkThread")
     private lateinit var handler: Handler
     private var lastIpNotification: String? = null
@@ -151,18 +152,41 @@ class NetworkScanService : Service() {
     }
 
     private fun listenForUdpBroadcast() {
+        // 12345 포트에서 수신하는 스레드
         Thread {
             try {
-                val socket = DatagramSocket(null).apply {
+                DatagramSocket(null).apply {
                     reuseAddress = true
-                    bind(java.net.InetSocketAddress(udpPort))
+                    bind(java.net.InetSocketAddress(12345))  // 첫 번째 포트
+                }.use { socket ->
+                    val buffer = ByteArray(1024)
+                    while (true) {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        resetTimer()
+                        handleReceivedPacket(packet)
+                    }
                 }
-                val buffer = ByteArray(1024)
-                while (true) {
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    socket.receive(packet)
-                    resetTimer()
-                    handleReceivedPacket(packet)
+            } catch (e: IOException) {
+                e.printStackTrace()
+                Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
+            }
+        }.start()
+
+        // 5005 포트에서 수신하는 스레드
+        Thread {
+            try {
+                DatagramSocket(null).apply {
+                    reuseAddress = true
+                    bind(java.net.InetSocketAddress(5005))  // 두 번째 포트
+                }.use { socket ->
+                    val buffer = ByteArray(1024)
+                    while (true) {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        resetTimer()
+                        handleReceivedPacket(packet)
+                    }
                 }
             } catch (e: IOException) {
                 e.printStackTrace()
@@ -186,7 +210,7 @@ class NetworkScanService : Service() {
             schedule(object : TimerTask() {
                 override fun run() {
                     // 타이머가 만료될 때만 isDisconnected를 true로 설정
-                    if (System.currentTimeMillis() - lastUpdateTime >= 10000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 15000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
