@@ -48,11 +48,18 @@ class NetworkScanService : Service() {
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         val userAction = intent.getBooleanExtra("userAction", false)
         val modeChange = intent.getStringExtra("modeChange")
+
+        if (modeChange != null) {
+            handleModeChange(modeChange)
+        }
+
         if (!userAction) {
             startForegroundServiceWithNotification()
+            startSignalSending()
+            listenForUdpBroadcast()
         }
-        val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
 
+        val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
         Thread {
             when (signal) {
                 "Right Blinker Activated", "Left Blinker Activated" -> {
@@ -84,6 +91,7 @@ class NetworkScanService : Service() {
 
         return START_NOT_STICKY
     }
+
     private fun handleModeChange(mode: String) {
         when (mode) {
             "manual" -> sendSignal("ENABLE_MANUAL_MODE")
@@ -111,6 +119,7 @@ class NetworkScanService : Service() {
             handleDisconnectedState()
         }
     }
+
     private fun handleDisconnectedState() {
         val notificationBuilder = Notification.Builder(this, "service_channel")
             .setContentTitle("용굴라이더와 연결되지 않았습니다.")
@@ -177,12 +186,12 @@ class NetworkScanService : Service() {
             schedule(object : TimerTask() {
                 override fun run() {
                     // 타이머가 만료될 때만 isDisconnected를 true로 설정
-                    if (System.currentTimeMillis() - lastUpdateTime >= 5000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 10000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
                 }
-            }, 1000) // 5초 후에 작업 실행
+            }, 1000) // 1초 후에 작업 실행
         }
     }
 
@@ -219,6 +228,8 @@ class NetworkScanService : Service() {
         if (parts.size == 2) {
             val ipInfo = parts[0].substring(3).trim()
             val status = parts[1].trim()
+
+            Log.d("NetworkScanService", "IP: $ipInfo, Status: $status")  // 로그로 상태 출력
 
             // IP 정보를 파일에 저장하고 관련 알림을 업데이트합니다.
             saveIpToCache(ipInfo)
