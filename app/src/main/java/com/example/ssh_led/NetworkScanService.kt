@@ -10,6 +10,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.util.Log
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
@@ -17,13 +20,13 @@ import java.io.InputStreamReader
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import android.util.Log
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.util.Timer
 import java.util.TimerTask
+import java.util.concurrent.ConcurrentHashMap
 
 class NetworkScanService : Service() {
     private val udpPort = 12345
+    private val secondaryUdpPort = 5005
 
     private val handlerThread = HandlerThread("NetworkThread")
     private lateinit var handler: Handler
@@ -31,6 +34,8 @@ class NetworkScanService : Service() {
     private var lastUpdateTime: Long = 0L
     private var timer: Timer? = null
     private var isDisconnected = false
+    private var lastBlinkerState: String? = null
+    private val receivedMessages = ConcurrentHashMap<String, Long>()
 
     override fun onCreate() {
         super.onCreate()
@@ -103,20 +108,17 @@ class NetworkScanService : Service() {
     private fun startForegroundServiceWithNotification() {
         val lastKnownIP = readIpFromCache()
         if (!lastKnownIP.isNullOrEmpty()) {
-            // IP 주소가 캐시에 있으면, 서버에 핑을 보내 연결 상태를 확인합니다.
             if (isServerReachable(lastKnownIP)) {
                 val notificationBuilder = Notification.Builder(this, "service_channel")
-                    .setContentTitle("용굴라이더와 연결됨2")
+                    .setContentTitle("용굴라이더와 연결됨")
                     .setContentText("연결된 IP: $lastKnownIP")
                     .setSmallIcon(android.R.drawable.stat_notify_sync)
                 startForeground(1, notificationBuilder.build())
                 lastIpNotification = lastKnownIP
             } else {
-                // 핑 실패 시 연결 끊김 상태로 알림을 설정합니다.
                 handleDisconnectedState()
             }
         } else {
-            // 캐시에 IP 주소가 없으면 바로 연결 끊김 알림을 표시합니다.
             handleDisconnectedState()
         }
     }
@@ -185,7 +187,7 @@ class NetworkScanService : Service() {
                         val packet = DatagramPacket(buffer, buffer.size)
                         socket.receive(packet)
                         resetTimer()
-                        handleReceivedPacket(packet)
+                        handleReceivedPacketSecondary(packet)
                     }
                 }
             } catch (e: IOException) {
@@ -197,7 +199,6 @@ class NetworkScanService : Service() {
 
     private fun resetTimer() {
         synchronized(this) {
-            // 기존 타이머 취소
             try {
                 timer?.cancel()
                 timer?.purge()
@@ -205,17 +206,15 @@ class NetworkScanService : Service() {
                 Log.e("NetworkScanService", "Timer cancel error: ", e)
             }
         }
-        // 새로운 타이머 생성
         timer = Timer().apply {
             schedule(object : TimerTask() {
                 override fun run() {
-                    // 타이머가 만료될 때만 isDisconnected를 true로 설정
                     if (System.currentTimeMillis() - lastUpdateTime >= 15000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
                 }
-            }, 1000) // 1초 후에 작업 실행
+            }, 1000)
         }
     }
 
@@ -232,16 +231,14 @@ class NetworkScanService : Service() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (isConnected && !lastKnownIP.isNullOrEmpty()) {
-            // 연결된 IP로 알림 업데이트
             updateNotification(lastKnownIP)
         } else if (!isConnected && lastIpNotification != "DISCONNECTED") {
-            // 연결 끊김 알림 업데이트 (연결 끊김 상태가 변경되었을 때만)
             val notificationBuilder = Notification.Builder(this, "service_channel").apply {
                 setContentTitle("용굴라이더와 연결되지 않았습니다.")
                 setSmallIcon(android.R.drawable.stat_notify_sync)
             }
             startForeground(1, notificationBuilder.build())
-            lastIpNotification = "DISCONNECTED"  // 상태 업데이트
+            lastIpNotification = "DISCONNECTED"
         }
     }
 
@@ -253,9 +250,8 @@ class NetworkScanService : Service() {
             val ipInfo = parts[0].substring(3).trim()
             val status = parts[1].trim()
 
-            Log.d("NetworkScanService", "IP: $ipInfo, Status: $status")  // 로그로 상태 출력
+            Log.d("NetworkScanService", "IP: $ipInfo, Status: $status")
 
-            // IP 정보를 파일에 저장하고 관련 알림을 업데이트합니다.
             saveIpToCache(ipInfo)
             val ipIntent = Intent("UPDATE_IP_ADDRESS").apply { putExtra("ip_address", ipInfo) }
             LocalBroadcastManager.getInstance(this).sendBroadcast(ipIntent)
@@ -263,6 +259,52 @@ class NetworkScanService : Service() {
             val recIntent = Intent("UPDATE_RECORDING_STATUS").apply { putExtra("recording_status", status) }
             LocalBroadcastManager.getInstance(this).sendBroadcast(recIntent)
         }
+    }
+
+    private fun handleReceivedPacketSecondary(packet: DatagramPacket) {
+        val receivedText = String(packet.data, 0, packet.length).trim()
+        Log.d("NetworkScanService", "Received UDP packet on port 5005: $receivedText")
+
+        synchronized(this) {
+            val currentTime = System.currentTimeMillis()
+            if (receivedMessages[receivedText] == null || currentTime - receivedMessages[receivedText]!! > 1000) {
+                receivedMessages[receivedText] = currentTime
+
+                try {
+                    val json = JSONObject(receivedText)
+                    val mode = json.getString("mode")
+                    val message = json.getJSONObject("message")
+                    val pin = message.getInt("pin")
+                    val state = message.getString("state")
+
+                    Log.d("NetworkScanService", "Mode: $mode, Pin: $pin, State: $state")
+
+                    val status = when {
+                        pin == 26 && state == "ON" -> "RIGHT_ON"
+                        pin == 26 && state == "OFF" -> "RIGHT_OFF"
+                        pin == 17 && state == "ON" -> "LEFT_ON"
+                        pin == 17 && state == "OFF" -> "LEFT_OFF"
+                        else -> null
+                    }
+
+                    if (status != null && status != lastBlinkerState) {
+                        lastBlinkerState = status
+                        sendBlinkerStatusBroadcast(status)
+                    }
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Log.e("NetworkScanService", "Error parsing JSON: ", e)
+                }
+            }
+        }
+    }
+
+    private fun sendBlinkerStatusBroadcast(status: String) {
+        val blinkerIntent = Intent("UPDATE_BLINKER_STATUS").apply {
+            putExtra("blinker_status", status)
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(blinkerIntent)
     }
 
     private fun updateNotification(ipAddress: String?) {
@@ -276,7 +318,7 @@ class NetworkScanService : Service() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notificationBuilder = Notification.Builder(this, "service_channel").apply {
             if (!lastKnownIP.isNullOrEmpty()) {
-                setContentTitle("용굴라이더와 연결됨1")
+                setContentTitle("용굴라이더와 연결됨")
                 setContentText("연결된 IP: $lastKnownIP")
                 setSmallIcon(android.R.drawable.stat_notify_sync)
             } else {
@@ -311,10 +353,8 @@ class NetworkScanService : Service() {
             }
             reader.close()
 
-            // 핑 명령의 결과를 로그로 출력
             Log.d("Ping", "Ping output: $output")
 
-            // 프로세스가 0을 반환하면 핑이 성공한 것으로 간주
             val exitVal = process.waitFor()
             return (exitVal == 0)
         } catch (e: Exception) {

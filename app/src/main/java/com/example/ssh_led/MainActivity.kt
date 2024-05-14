@@ -44,7 +44,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private var loadingDots = ""
     private lateinit var toggleModeButton: ToggleButton
-
+    private lateinit var rightBlinker1: ImageView
+    private lateinit var rightBlinker2: ImageView
+    private lateinit var rightBlinker3: ImageView
+    private lateinit var leftBlinker1: ImageView
+    private lateinit var leftBlinker2: ImageView
+    private lateinit var leftBlinker3: ImageView
 
     // 스와이프 감지를 위한 변수
     private var x1: Float = 0.0f
@@ -68,6 +73,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // 블링커 상태 업데이트를 위한 수신기 추가
+    private val blinkerStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val blinkerStatus = intent?.getStringExtra("blinker_status")
+            if (blinkerStatus != null) {
+                handleBlinkerStatus(blinkerStatus)
+            }
+        }
+    }
+
     private var isAnimating = false // 애니메이션 상태를 저장하는 변수
 
     private fun startIpSearchAnimation() {
@@ -78,13 +93,12 @@ class MainActivity : AppCompatActivity() {
                     if (loadingDots.length >= 3) loadingDots = ""
                     loadingDots += "."
                     ipAddressTextView.text = "IP 주소를 검색 중입니다$loadingDots"
-                    ipUpdateHandler.postDelayed(this, 550)  // 계속해서 애니메이션을 유지
+                    ipUpdateHandler.postDelayed(this, 1000)  // 계속해서 애니메이션을 유지
                 }
             }
         }
         ipUpdateHandler.post(ipUpdateRunnable)
     }
-
 
     private val recordingStatusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -105,6 +119,37 @@ class MainActivity : AppCompatActivity() {
         registerReceivers()
         initiateServices()
         setupLoadingAnimation()
+
+        // 수신기 등록
+        LocalBroadcastManager.getInstance(this).registerReceiver(blinkerStatusReceiver, IntentFilter("UPDATE_BLINKER_STATUS"))
+    }
+
+    // 블링커 상태 처리 메서드
+    private fun handleBlinkerStatus(blinkerStatus: String) {
+        when (blinkerStatus) {
+            "RIGHT_ON" -> {
+                scope.launch {
+                    setBlinkerVisibility(View.GONE, leftBlinker1, leftBlinker2, leftBlinker3)
+                    blinkerSequence(rightBlinker1, rightBlinker2, rightBlinker3)
+                }
+            }
+            "RIGHT_OFF" -> {
+                setBlinkerVisibility(View.GONE, rightBlinker1, rightBlinker2, rightBlinker3)
+            }
+            "LEFT_ON" -> {
+                scope.launch {
+                    setBlinkerVisibility(View.GONE, rightBlinker1, rightBlinker2, rightBlinker3)
+                    blinkerSequence(leftBlinker1, leftBlinker2, leftBlinker3)
+                }
+            }
+            "LEFT_OFF" -> {
+                setBlinkerVisibility(View.GONE, leftBlinker1, leftBlinker2, leftBlinker3)
+            }
+        }
+    }
+
+    private fun setBlinkerVisibility(visibility: Int, vararg blinkers: ImageView) {
+        blinkers.forEach { it.visibility = visibility }
     }
 
     private fun setupLoadingAnimation() {
@@ -123,31 +168,38 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun onRightBlinkerClicked(view: View) {
-        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, leftBlinker1, leftBlinker2, leftBlinker3)
+            blinkerSequence(rightBlinker1, rightBlinker2, rightBlinker3)
+        }
         sendSignal("Right Blinker Activated", true)
     }
 
     fun onLeftBlinkerClicked(view: View) {
-        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, rightBlinker1, rightBlinker2, rightBlinker3)
+            blinkerSequence(leftBlinker1, leftBlinker2, leftBlinker3)
+        }
         sendSignal("Left Blinker Activated", true)
     }
 
-    private fun blinkerSequence(first: Int, second: Int, third: Int) {
-        scope.launch {
-            showAndHide(first)
-            delay(100)
-            showAndHide(second)
-            delay(100)
-            showAndHide(third)
+    private suspend fun blinkerSequence(vararg blinkers: ImageView) {
+        val blinkCount = 1 // 깜빡일 횟수
+        val delayTime = 300L // 각 깜빡임 사이의 지연 시간 (밀리초)
+        val offTime = 0L // 꺼져 있는 시간 (밀리초)
+
+        for (i in 0 until blinkCount) {
+            blinkers.forEach {
+                showAndHide(it, delayTime)
+            }
+            delay(offTime) // 전체 LED가 꺼져 있는 시간
         }
     }
 
-    private suspend fun showAndHide(viewId: Int) {
-        findViewById<View>(viewId).apply {
-            visibility = View.VISIBLE
-            delay(100)
-            visibility = View.GONE
-        }
+    private suspend fun showAndHide(view: ImageView, delayTime: Long) {
+        view.visibility = View.VISIBLE
+        delay(delayTime)
+        view.visibility = View.GONE
     }
 
     private fun setupViews() {
@@ -158,13 +210,21 @@ class MainActivity : AppCompatActivity() {
         toggleModeButton = findViewById(R.id.toggleModeButton)
         blinkAnimation = AnimationUtils.loadAnimation(this, R.anim.blink)
 
+        // 블링커 이미지들을 초기화
+        rightBlinker1 = findViewById(R.id.right_blinker_orange_1)
+        rightBlinker2 = findViewById(R.id.right_blinker_orange_2)
+        rightBlinker3 = findViewById(R.id.right_blinker_orange_3)
+        leftBlinker1 = findViewById(R.id.left_blinker_orange_1)
+        leftBlinker2 = findViewById(R.id.left_blinker_orange_2)
+        leftBlinker3 = findViewById(R.id.left_blinker_orange_3)
+
         // 블링커 이미지들을 초기에 보이지 않도록 설정
-        findViewById<ImageView>(R.id.left_blinker_orange_1).visibility = View.GONE
-        findViewById<ImageView>(R.id.left_blinker_orange_2).visibility = View.GONE
-        findViewById<ImageView>(R.id.left_blinker_orange_3).visibility = View.GONE
-        findViewById<ImageView>(R.id.right_blinker_orange_1).visibility = View.GONE
-        findViewById<ImageView>(R.id.right_blinker_orange_2).visibility = View.GONE
-        findViewById<ImageView>(R.id.right_blinker_orange_3).visibility = View.GONE
+        rightBlinker1.visibility = View.GONE
+        rightBlinker2.visibility = View.GONE
+        rightBlinker3.visibility = View.GONE
+        leftBlinker1.visibility = View.GONE
+        leftBlinker2.visibility = View.GONE
+        leftBlinker3.visibility = View.GONE
     }
 
     private fun setupListeners() {
@@ -203,8 +263,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-
-    // 스와이프 리스너 설정
+        // 스와이프 리스너 설정
         findViewById<View>(R.id.main_layout).setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -269,58 +328,66 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onHorizontalSwipeRight() {
-//        Toast.makeText(this, "오른쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
-        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, leftBlinker1, leftBlinker2, leftBlinker3)
+            blinkerSequence(rightBlinker1, rightBlinker2, rightBlinker3)
+        }
         sendSignal("Right Blinker Activated", true)
     }
 
     private fun onHorizontalSwipeLeft() {
-//        Toast.makeText(this, "왼쪽으로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
-        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, rightBlinker1, rightBlinker2, rightBlinker3)
+            blinkerSequence(leftBlinker1, leftBlinker2, leftBlinker3)
+        }
         sendSignal("Left Blinker Activated", true)
     }
 
     private fun onVerticalSwipeUp() {
         // 위로 수직 스와이프할 때의 반응
-//        Toast.makeText(this, "위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
     }
 
     private fun onVerticalSwipeDown() {
         // 아래로 수직 스와이프할 때의 반응
-//        Toast.makeText(this, "아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
     }
 
     // 대각선 스와이프에 대한 예제 함수
     private fun onDiagonalSwipeBottomRight() {
-        // 오른쪽 아래 대각선 방향으로 스와이프할 때의 반응
-//        Toast.makeText(this, "오른쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
-        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, leftBlinker1, leftBlinker2, leftBlinker3)
+            blinkerSequence(rightBlinker1, rightBlinker2, rightBlinker3)
+        }
         sendSignal("Right Blinker Activated", true)
     }
 
     private fun onDiagonalSwipeTopRight() {
-        // 오른쪽 위 대각선 방향으로 스와이프할 때의 반응
-//        Toast.makeText(this, "오른쪽 위로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
-        blinkerSequence(R.id.right_blinker_orange_1, R.id.right_blinker_orange_2, R.id.right_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, leftBlinker1, leftBlinker2, leftBlinker3)
+            blinkerSequence(rightBlinker1, rightBlinker2, rightBlinker3)
+        }
         sendSignal("Right Blinker Activated", true)
     }
 
     private fun onDiagonalSwipeBottomLeft() {
-        // 왼쪽 아래 대각선 방향으로 스와이프할 때의 반응
-//        Toast.makeText(this, "왼쪽 아래로 스와이프 감지됨", Toast.LENGTH_SHORT).show()
-        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, rightBlinker1, rightBlinker2, rightBlinker3)
+            blinkerSequence(leftBlinker1, leftBlinker2, leftBlinker3)
+        }
         sendSignal("Left Blinker Activated", true)
     }
 
     private fun onDiagonalSwipeTopLeft() {
-        // 왼쪽 위 대각선 방향으로 스와이프할 때의 반응
-        blinkerSequence(R.id.left_blinker_orange_1, R.id.left_blinker_orange_2, R.id.left_blinker_orange_3)
+        scope.launch {
+            setBlinkerVisibility(View.GONE, rightBlinker1, rightBlinker2, rightBlinker3)
+            blinkerSequence(leftBlinker1, leftBlinker2, leftBlinker3)
+        }
         sendSignal("Left Blinker Activated", true)
     }
 
     private fun registerReceivers() {
         LocalBroadcastManager.getInstance(this).registerReceiver(ipReceiver, IntentFilter("UPDATE_IP_ADDRESS"))
         LocalBroadcastManager.getInstance(this).registerReceiver(recordingStatusReceiver, IntentFilter("UPDATE_RECORDING_STATUS"))
+        LocalBroadcastManager.getInstance(this).registerReceiver(blinkerStatusReceiver, IntentFilter("UPDATE_BLINKER_STATUS"))
     }
 
     private fun updateIpSearchStatus() {
@@ -413,6 +480,7 @@ class MainActivity : AppCompatActivity() {
         mediaPlayer = null
         LocalBroadcastManager.getInstance(this).unregisterReceiver(ipReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(recordingStatusReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(blinkerStatusReceiver)  // 수신기 해제
         ipUpdateHandler.removeCallbacks(ipUpdateRunnable)
         scope.cancel() // Cancel coroutines when the activity is destroyed
     }
