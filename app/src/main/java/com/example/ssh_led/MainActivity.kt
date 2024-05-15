@@ -93,7 +93,7 @@ class MainActivity : AppCompatActivity() {
                     if (loadingDots.length >= 3) loadingDots = ""
                     loadingDots += "."
                     ipAddressTextView.text = "IP 주소를 검색 중입니다$loadingDots"
-                    ipUpdateHandler.postDelayed(this, 1000)  // 계속해서 애니메이션을 유지
+                    ipUpdateHandler.postDelayed(this, 800)  // 계속해서 애니메이션을 유지
                 }
             }
         }
@@ -185,7 +185,7 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun blinkerSequence(vararg blinkers: ImageView) {
         val blinkCount = 1 // 깜빡일 횟수
-        val delayTime = 300L // 각 깜빡임 사이의 지연 시간 (밀리초)
+        val delayTime = 50L // 각 깜빡임 사이의 지연 시간 (밀리초)
         val offTime = 0L // 꺼져 있는 시간 (밀리초)
 
         for (i in 0 until blinkCount) {

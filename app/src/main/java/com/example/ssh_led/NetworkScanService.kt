@@ -13,15 +13,11 @@ import android.os.IBinder
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.File
-import java.io.IOException
-import java.io.InputStreamReader
+import java.io.*
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import java.util.Timer
-import java.util.TimerTask
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 class NetworkScanService : Service() {
@@ -41,23 +37,14 @@ class NetworkScanService : Service() {
         super.onCreate()
         handlerThread.start()
         handler = Handler(handlerThread.looper)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "service_channel",
-                "Service Channel",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
+        createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         val userAction = intent.getBooleanExtra("userAction", false)
         val modeChange = intent.getStringExtra("modeChange")
 
-        if (modeChange != null) {
-            handleModeChange(modeChange)
-        }
+        modeChange?.let { handleModeChange(it) }
 
         if (!userAction) {
             startForegroundServiceWithNotification()
@@ -66,36 +53,20 @@ class NetworkScanService : Service() {
         }
 
         val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
-        Thread {
-            when (signal) {
-                "Right Blinker Activated", "Left Blinker Activated" -> {
-                    sendSignal(signal)
-                    if (!userAction) {
-                        resetTimer()
-                    }
-                }
-                "REQUEST_RECORDING_STATUS" -> {
-                    sendSignal(signal)
-                    if (!userAction) {
-                        resetTimer()
-                    }
-                }
-                else -> {
-                    sendSignal(signal)
-                    sendSignal("REQUEST_RECORDING_STATUS")
-                    if (!userAction) {
-                        resetTimer()
-                    }
-                }
-            }
-        }.start()
-
-        if (!userAction) {
-            startSignalSending()
-            listenForUdpBroadcast()
-        }
+        handleSignal(signal, userAction)
 
         return START_NOT_STICKY
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "service_channel",
+                "Service Channel",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
     }
 
     private fun handleModeChange(mode: String) {
@@ -107,27 +78,16 @@ class NetworkScanService : Service() {
 
     private fun startForegroundServiceWithNotification() {
         val lastKnownIP = readIpFromCache()
-        if (!lastKnownIP.isNullOrEmpty()) {
-            if (isServerReachable(lastKnownIP)) {
-                val notificationBuilder = Notification.Builder(this, "service_channel")
-                    .setContentTitle("용굴라이더와 연결됨")
-                    .setContentText("연결된 IP: $lastKnownIP")
-                    .setSmallIcon(android.R.drawable.stat_notify_sync)
-                startForeground(1, notificationBuilder.build())
-                lastIpNotification = lastKnownIP
-            } else {
-                handleDisconnectedState()
-            }
+        if (!lastKnownIP.isNullOrEmpty() && isServerReachable(lastKnownIP)) {
+            updateNotification("연결된 IP: $lastKnownIP", "CONNECTED")
+            lastIpNotification = "CONNECTED"
         } else {
             handleDisconnectedState()
         }
     }
 
     private fun handleDisconnectedState() {
-        val notificationBuilder = Notification.Builder(this, "service_channel")
-            .setContentTitle("용굴라이더와 연결되지 않았습니다.")
-            .setSmallIcon(android.R.drawable.stat_notify_sync)
-        startForeground(1, notificationBuilder.build())
+        updateNotification("용굴라이더와 연결되지 않았습니다.", "DISCONNECTED")
         lastIpNotification = "DISCONNECTED"
     }
 
@@ -136,80 +96,56 @@ class NetworkScanService : Service() {
             sendSignal("REQUEST_IP")
             sendSignal("REQUEST_RECORDING_STATUS")
             startSignalSending()
-        }, 1000)
+        }, 5000)  // 주기 변경
     }
 
     private fun sendSignal(signal: String) {
-        try {
-            DatagramSocket().use { socket ->
-                socket.broadcast = true
-                val sendData = signal.toByteArray()
-                val packet = DatagramPacket(sendData, sendData.size, InetAddress.getByName("255.255.255.255"), udpPort)
-                socket.send(packet)
+        handler.post {
+            try {
+                DatagramSocket().use { socket ->
+                    socket.broadcast = true
+                    val sendData = signal.toByteArray()
+                    val packet = DatagramPacket(sendData, sendData.size, InetAddress.getByName("255.255.255.255"), udpPort)
+                    socket.send(packet)
+                }
+            } catch (e: IOException) {
+                Log.e("NetworkScanService", "신호 전송 중 오류 발생: ", e)
             }
-        } catch (e: IOException) {
-            e.printStackTrace()
-            Log.e("NetworkScanService", "신호 전송 중 오류 발생: ", e)
         }
     }
 
     private fun listenForUdpBroadcast() {
-        // 12345 포트에서 수신하는 스레드
-        Thread {
-            try {
-                DatagramSocket(null).apply {
-                    reuseAddress = true
-                    bind(java.net.InetSocketAddress(12345))  // 첫 번째 포트
-                }.use { socket ->
-                    val buffer = ByteArray(1024)
-                    while (true) {
-                        val packet = DatagramPacket(buffer, buffer.size)
-                        socket.receive(packet)
-                        resetTimer()
-                        handleReceivedPacket(packet)
+        arrayOf(udpPort, secondaryUdpPort).forEach { port ->
+            Thread {
+                try {
+                    DatagramSocket(null).apply {
+                        reuseAddress = true
+                        bind(java.net.InetSocketAddress(port))
+                    }.use { socket ->
+                        val buffer = ByteArray(1024)
+                        while (true) {
+                            val packet = DatagramPacket(buffer, buffer.size)
+                            socket.receive(packet)
+                            resetTimer()
+                            if (port == udpPort) handleReceivedPacket(packet) else handleReceivedPacketSecondary(packet)
+                        }
                     }
+                } catch (e: IOException) {
+                    Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
                 }
-            } catch (e: IOException) {
-                e.printStackTrace()
-                Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
-            }
-        }.start()
-
-        // 5005 포트에서 수신하는 스레드
-        Thread {
-            try {
-                DatagramSocket(null).apply {
-                    reuseAddress = true
-                    bind(java.net.InetSocketAddress(5005))  // 두 번째 포트
-                }.use { socket ->
-                    val buffer = ByteArray(1024)
-                    while (true) {
-                        val packet = DatagramPacket(buffer, buffer.size)
-                        socket.receive(packet)
-                        resetTimer()
-                        handleReceivedPacketSecondary(packet)
-                    }
-                }
-            } catch (e: IOException) {
-                e.printStackTrace()
-                Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
-            }
-        }.start()
+            }.start()
+        }
     }
 
     private fun resetTimer() {
         synchronized(this) {
-            try {
-                timer?.cancel()
-                timer?.purge()
-            } catch (e: IllegalStateException) {
-                Log.e("NetworkScanService", "Timer cancel error: ", e)
-            }
+            timer?.cancel()
+            timer?.purge()
         }
         timer = Timer().apply {
             schedule(object : TimerTask() {
                 override fun run() {
-                    if (System.currentTimeMillis() - lastUpdateTime >= 15000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 5000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
@@ -219,26 +155,16 @@ class NetworkScanService : Service() {
     }
 
     private fun updateConnectionStatus(isConnected: Boolean) {
-        val ipIntent = Intent("UPDATE_IP_ADDRESS")
-        if (isConnected) {
-            val ip = readIpFromCache() ?: "Unknown IP"
-            ipIntent.putExtra("ip_address", ip)
-        } else {
-            ipIntent.putExtra("ip_address", "DISCONNECTED")
+        val ipIntent = Intent("UPDATE_IP_ADDRESS").apply {
+            putExtra("ip_address", if (isConnected) readIpFromCache() ?: "Unknown IP" else "DISCONNECTED")
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(ipIntent)
-        val lastKnownIP = readIpFromCache()
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        val lastKnownIP = readIpFromCache()
         if (isConnected && !lastKnownIP.isNullOrEmpty()) {
-            updateNotification(lastKnownIP)
+            updateNotification("연결된 IP: $lastKnownIP", "CONNECTED")
         } else if (!isConnected && lastIpNotification != "DISCONNECTED") {
-            val notificationBuilder = Notification.Builder(this, "service_channel").apply {
-                setContentTitle("용굴라이더와 연결되지 않았습니다.")
-                setSmallIcon(android.R.drawable.stat_notify_sync)
-            }
-            startForeground(1, notificationBuilder.build())
-            lastIpNotification = "DISCONNECTED"
+            updateNotification("용굴라이더와 연결되지 않았습니다.", "DISCONNECTED")
         }
     }
 
@@ -249,15 +175,10 @@ class NetworkScanService : Service() {
         if (parts.size == 2) {
             val ipInfo = parts[0].substring(3).trim()
             val status = parts[1].trim()
-
-            Log.d("NetworkScanService", "IP: $ipInfo, Status: $status")
-
             saveIpToCache(ipInfo)
-            val ipIntent = Intent("UPDATE_IP_ADDRESS").apply { putExtra("ip_address", ipInfo) }
-            LocalBroadcastManager.getInstance(this).sendBroadcast(ipIntent)
-            updateNotification(ipInfo)
-            val recIntent = Intent("UPDATE_RECORDING_STATUS").apply { putExtra("recording_status", status) }
-            LocalBroadcastManager.getInstance(this).sendBroadcast(recIntent)
+            updateNotification("연결된 IP: $ipInfo", "CONNECTED")
+            broadcastUpdate("UPDATE_IP_ADDRESS", "ip_address", ipInfo)
+            broadcastUpdate("UPDATE_RECORDING_STATUS", "recording_status", status)
         }
     }
 
@@ -269,62 +190,58 @@ class NetworkScanService : Service() {
             val currentTime = System.currentTimeMillis()
             if (receivedMessages[receivedText] == null || currentTime - receivedMessages[receivedText]!! > 1000) {
                 receivedMessages[receivedText] = currentTime
-
-                try {
-                    val json = JSONObject(receivedText)
-                    val mode = json.getString("mode")
-                    val message = json.getJSONObject("message")
-                    val pin = message.getInt("pin")
-                    val state = message.getString("state")
-
-                    Log.d("NetworkScanService", "Mode: $mode, Pin: $pin, State: $state")
-
-                    val status = when {
-                        pin == 26 && state == "ON" -> "RIGHT_ON"
-                        pin == 26 && state == "OFF" -> "RIGHT_OFF"
-                        pin == 17 && state == "ON" -> "LEFT_ON"
-                        pin == 17 && state == "OFF" -> "LEFT_OFF"
-                        else -> null
-                    }
-
-                    if (status != null && status != lastBlinkerState) {
-                        lastBlinkerState = status
-                        sendBlinkerStatusBroadcast(status)
-                    }
-
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    Log.e("NetworkScanService", "Error parsing JSON: ", e)
-                }
+                parseAndHandleJson(receivedText)
             }
         }
     }
 
-    private fun sendBlinkerStatusBroadcast(status: String) {
-        val blinkerIntent = Intent("UPDATE_BLINKER_STATUS").apply {
-            putExtra("blinker_status", status)
+    private fun parseAndHandleJson(receivedText: String) {
+        try {
+            val json = JSONObject(receivedText)
+            val mode = json.getString("mode")
+            val message = json.getJSONObject("message")
+            val pin = message.getInt("pin")
+            val state = message.getString("state")
+
+            Log.d("NetworkScanService", "Mode: $mode, Pin: $pin, State: $state")
+
+            val status = when {
+                pin == 26 && state == "ON" -> "RIGHT_ON"
+                pin == 26 && state == "OFF" -> "RIGHT_OFF"
+                pin == 17 && state == "ON" -> "LEFT_ON"
+                pin == 17 && state == "OFF" -> "LEFT_OFF"
+                else -> null
+            }
+
+            if (status != null && status != lastBlinkerState) {
+                lastBlinkerState = status
+                broadcastUpdate("UPDATE_BLINKER_STATUS", "blinker_status", status)
+            }
+
+        } catch (e: Exception) {
+            Log.e("NetworkScanService", "Error parsing JSON: ", e)
         }
-        LocalBroadcastManager.getInstance(this).sendBroadcast(blinkerIntent)
     }
 
-    private fun updateNotification(ipAddress: String?) {
+    private fun broadcastUpdate(action: String, key: String, value: String) {
+        val intent = Intent(action).apply {
+            putExtra(key, value)
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    private fun updateNotification(contentText: String, connectionStatus: String) {
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastUpdateTime < 1000) return
         lastUpdateTime = currentTime
-        val ipPart = ipAddress?.split("-")?.first()?.trim()
-        if (lastIpNotification == ipPart) return
-        lastIpNotification = ipPart
-        val lastKnownIP = readIpFromCache()
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (lastIpNotification == connectionStatus) return
+        lastIpNotification = connectionStatus
+
         val notificationBuilder = Notification.Builder(this, "service_channel").apply {
-            if (!lastKnownIP.isNullOrEmpty()) {
-                setContentTitle("용굴라이더와 연결됨")
-                setContentText("연결된 IP: $lastKnownIP")
-                setSmallIcon(android.R.drawable.stat_notify_sync)
-            } else {
-                setContentTitle("용굴라이더와 연결되지 않았습니다.")
-                    .setSmallIcon(android.R.drawable.stat_notify_sync)
-            }
+            setContentTitle("용굴라이더와 연결됨")
+            setContentText(contentText)
+            setSmallIcon(android.R.drawable.stat_notify_sync)
         }
         startForeground(1, notificationBuilder.build())
     }
@@ -343,24 +260,34 @@ class NetworkScanService : Service() {
     }
 
     private fun isServerReachable(ipAddress: String): Boolean {
-        try {
+        return try {
             val process = Runtime.getRuntime().exec("/system/bin/ping -c 1 $ipAddress")
             val reader = BufferedReader(InputStreamReader(process.inputStream))
-            var line: String?
-            val output = StringBuilder()
-            while (reader.readLine().also { line = it } != null) {
-                output.append(line + "\n")
-            }
+            val output = reader.readText()
             reader.close()
-
             Log.d("Ping", "Ping output: $output")
-
-            val exitVal = process.waitFor()
-            return (exitVal == 0)
+            process.waitFor() == 0
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("NetworkScanService", "Error checking server reachability", e)
+            false
         }
-        return false
+    }
+
+    private fun handleSignal(signal: String, userAction: Boolean) {
+        handler.post {
+            when (signal) {
+                "Right Blinker Activated", "Left Blinker Activated",
+                "REQUEST_RECORDING_STATUS" -> {
+                    sendSignal(signal)
+                    if (!userAction) resetTimer()
+                }
+                else -> {
+                    sendSignal(signal)
+                    sendSignal("REQUEST_RECORDING_STATUS")
+                    if (!userAction) resetTimer()
+                }
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
