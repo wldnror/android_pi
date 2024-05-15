@@ -145,12 +145,12 @@ class NetworkScanService : Service() {
         timer = Timer().apply {
             schedule(object : TimerTask() {
                 override fun run() {
-                    if (System.currentTimeMillis() - lastUpdateTime >= 5000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 8000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
                 }
-            }, 1000)
+            }, 2000)
         }
     }
 
