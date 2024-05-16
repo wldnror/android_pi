@@ -3,6 +3,7 @@ package com.example.ssh_led
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import org.json.JSONObject
 import java.io.*
@@ -245,22 +247,34 @@ class NetworkScanService : Service() {
             "용굴라이더와 연결되지 않았습니다"
         }
 
-        val notificationBuilder = Notification.Builder(this, "service_channel").apply {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val notificationBuilder = NotificationCompat.Builder(this, "service_channel").apply {
             setContentTitle(notificationTitle)
             // 연결되지 않은 상태에서는 내용은 빈 문자열로 설정
             setContentText(if (connectionStatus == "CONNECTED") contentText else "")
             setSmallIcon(R.drawable.ic_stat_)
+            setContentIntent(pendingIntent)  // 알림 클릭 시 실행할 인텐트 설정
+            setAutoCancel(true)
         }
         startForeground(1, notificationBuilder.build())
     }
 
     private fun saveIpToCache(ipAddress: String) {
-        File(cacheDir, "last_ip_address").writeText(ipAddress)
+        try {
+            File(cacheDir, "last_ip_address").writeText(ipAddress)
+        } catch (e: IOException) {
+            Log.e("NetworkScanService", "Error writing IP to cache", e)
+        }
     }
 
     private fun readIpFromCache(): String? {
         return try {
             File(cacheDir, "last_ip_address").readText()
+        } catch (e: FileNotFoundException) {
+            Log.e("NetworkScanService", "IP cache file not found", e)
+            null  // 파일이 없으면 null 반환
         } catch (e: IOException) {
             Log.e("NetworkScanService", "Error reading IP from cache", e)
             null
@@ -306,4 +320,3 @@ class NetworkScanService : Service() {
         handlerThread.quitSafely()
     }
 }
-
