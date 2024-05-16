@@ -231,6 +231,9 @@ class MainActivity : AppCompatActivity() {
         leftBlinker1.visibility = View.GONE
         leftBlinker2.visibility = View.GONE
         leftBlinker3.visibility = View.GONE
+
+        // 기본값을 자동 모드로 설정
+        toggleModeButton.isChecked = false
     }
 
     private fun setupListeners() {
@@ -253,9 +256,15 @@ class MainActivity : AppCompatActivity() {
 
         // 토글 버튼 상태 변화에 대한 리스너 설정
         toggleModeButton.setOnCheckedChangeListener { _, isChecked ->
-            val modeSignal = if (isChecked) "ENABLE_MANUAL_MODE" else "ENABLE_AUTO_MODE"
-            sendSignal(modeSignal, true)  // 변경된 모드 신호를 서비스로 보냄
-            Toast.makeText(this, if (isChecked) "수동 모드로 전환됩니다." else "자동 모드로 전환됩니다.", Toast.LENGTH_SHORT).show()
+            if (!hasIP) {
+                // 서버와 연결되어 있지 않을 경우
+                Toast.makeText(this, "용굴라이더와 연결 후 시도해 주세요.", Toast.LENGTH_LONG).show()
+                toggleModeButton.isChecked = !isChecked // 버튼 상태 원복
+            } else {
+                val modeSignal = if (isChecked) "ENABLE_MANUAL_MODE" else "ENABLE_AUTO_MODE"
+                sendSignal(modeSignal, true)  // 변경된 모드 신호를 서비스로 보냄
+                Toast.makeText(this, if (isChecked) "수동 모드로 전환됩니다." else "자동 모드로 전환됩니다.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         val navView: NavigationView = findViewById(R.id.nav_view)
