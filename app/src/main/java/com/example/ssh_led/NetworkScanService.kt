@@ -249,7 +249,7 @@ class NetworkScanService : Service() {
             setContentTitle(notificationTitle)
             // 연결되지 않은 상태에서는 내용은 빈 문자열로 설정
             setContentText(if (connectionStatus == "CONNECTED") contentText else "")
-            setSmallIcon(android.R.drawable.stat_notify_sync)
+            setSmallIcon(R.drawable.ic_stat_)
         }
         startForeground(1, notificationBuilder.build())
     }
