@@ -6,11 +6,15 @@ import android.content.IntentFilter
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
+import android.os.PowerManager
+import android.provider.Settings
+import android.net.Uri
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -21,7 +25,6 @@ import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import com.google.android.material.navigation.NavigationView
 import android.content.SharedPreferences
-import android.widget.Toast
 import kotlinx.coroutines.*
 import android.os.Looper
 import android.widget.ProgressBar
@@ -122,6 +125,9 @@ class MainActivity : AppCompatActivity() {
 
         // 수신기 등록
         LocalBroadcastManager.getInstance(this).registerReceiver(blinkerStatusReceiver, IntentFilter("UPDATE_BLINKER_STATUS"))
+
+        // 배터리 최적화 중지 요청
+        checkBatteryOptimization()
     }
 
     // 블링커 상태 처리 메서드
@@ -496,6 +502,28 @@ class MainActivity : AppCompatActivity() {
     private fun checkAndRequestNotificationPermission() {
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
             ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+        }
+    }
+
+    private fun checkBatteryOptimization() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val packageName = packageName
+
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = Uri.parse("package:$packageName")
+            startActivityForResult(intent, 101)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 101) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                // 사용자에게 배터리 최적화 중지를 허용하지 않았음을 알리는 메시지
+                Toast.makeText(this, "배터리 최적화 중지가 필요합니다. 설정에서 직접 변경해 주세요.", Toast.LENGTH_LONG).show()
+            }
         }
     }
 }

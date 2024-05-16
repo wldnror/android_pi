@@ -238,9 +238,17 @@ class NetworkScanService : Service() {
         if (lastIpNotification == connectionStatus) return
         lastIpNotification = connectionStatus
 
+        // 연결 상태에 따른 알림 제목 설정
+        val notificationTitle = if (connectionStatus == "CONNECTED") {
+            "용굴라이더와 연결됨"
+        } else {
+            "용굴라이더와 연결되지 않았습니다"
+        }
+
         val notificationBuilder = Notification.Builder(this, "service_channel").apply {
-            setContentTitle("용굴라이더와 연결됨")
-            setContentText(contentText)
+            setContentTitle(notificationTitle)
+            // 연결되지 않은 상태에서는 내용은 빈 문자열로 설정
+            setContentText(if (connectionStatus == "CONNECTED") contentText else "")
             setSmallIcon(android.R.drawable.stat_notify_sync)
         }
         startForeground(1, notificationBuilder.build())
@@ -298,3 +306,4 @@ class NetworkScanService : Service() {
         handlerThread.quitSafely()
     }
 }
+
