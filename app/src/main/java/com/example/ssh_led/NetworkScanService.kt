@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.*
 import java.net.DatagramPacket
@@ -35,6 +36,8 @@ class NetworkScanService : Service() {
     private var lastBlinkerState: String? = null
     private val receivedMessages = ConcurrentHashMap<String, Long>()
 
+    private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
+
     override fun onCreate() {
         super.onCreate()
         handlerThread.start()
@@ -50,8 +53,8 @@ class NetworkScanService : Service() {
 
         if (!userAction) {
             startForegroundServiceWithNotification()
-            startSignalSending()
-            listenForUdpBroadcast()
+            serviceScope.launch { startSignalSending() }
+            serviceScope.launch { listenForUdpBroadcast() }
         }
 
         val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
@@ -91,18 +94,30 @@ class NetworkScanService : Service() {
     private fun handleDisconnectedState() {
         updateNotification("용굴라이더와 연결되지 않았습니다.", "DISCONNECTED")
         lastIpNotification = "DISCONNECTED"
+        deleteIpCache()
     }
 
-    private fun startSignalSending() {
-        handler.postDelayed({
+    private fun deleteIpCache() {
+        try {
+            val file = File(cacheDir, "last_ip_address")
+            if (file.exists()) {
+                file.delete()
+            }
+        } catch (e: IOException) {
+            Log.e("NetworkScanService", "Error deleting IP cache file", e)
+        }
+    }
+
+    private suspend fun startSignalSending() {
+        while (true) {
             sendSignal("REQUEST_IP")
             sendSignal("REQUEST_RECORDING_STATUS")
-            startSignalSending()
-        }, 5000)  // 주기 변경
+            delay(5000)  // 주기 변경
+        }
     }
 
     private fun sendSignal(signal: String) {
-        handler.post {
+        serviceScope.launch {
             try {
                 DatagramSocket().use { socket ->
                     socket.broadcast = true
@@ -116,26 +131,28 @@ class NetworkScanService : Service() {
         }
     }
 
-    private fun listenForUdpBroadcast() {
-        arrayOf(udpPort, secondaryUdpPort).forEach { port ->
-            Thread {
-                try {
-                    DatagramSocket(null).apply {
-                        reuseAddress = true
-                        bind(java.net.InetSocketAddress(port))
-                    }.use { socket ->
-                        val buffer = ByteArray(1024)
-                        while (true) {
-                            val packet = DatagramPacket(buffer, buffer.size)
-                            socket.receive(packet)
-                            resetTimer()
-                            if (port == udpPort) handleReceivedPacket(packet) else handleReceivedPacketSecondary(packet)
+    private suspend fun listenForUdpBroadcast() {
+        withContext(Dispatchers.IO) {
+            arrayOf(udpPort, secondaryUdpPort).forEach { port ->
+                launch {
+                    try {
+                        DatagramSocket(null).apply {
+                            reuseAddress = true
+                            bind(java.net.InetSocketAddress(port))
+                        }.use { socket ->
+                            val buffer = ByteArray(1024)
+                            while (true) {
+                                val packet = DatagramPacket(buffer, buffer.size)
+                                socket.receive(packet)
+                                resetTimer()
+                                if (port == udpPort) handleReceivedPacket(packet) else handleReceivedPacketSecondary(packet)
+                            }
                         }
+                    } catch (e: IOException) {
+                        Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
                     }
-                } catch (e: IOException) {
-                    Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
                 }
-            }.start()
+            }
         }
     }
 
@@ -296,7 +313,7 @@ class NetworkScanService : Service() {
     }
 
     private fun handleSignal(signal: String, userAction: Boolean) {
-        handler.post {
+        serviceScope.launch {
             when (signal) {
                 "Right Blinker Activated", "Left Blinker Activated",
                 "REQUEST_RECORDING_STATUS" -> {
@@ -316,7 +333,6 @@ class NetworkScanService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        handler.removeCallbacksAndMessages(null)
-        handlerThread.quitSafely()
+        serviceScope.cancel()
     }
 }
