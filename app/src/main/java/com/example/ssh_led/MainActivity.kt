@@ -29,6 +29,7 @@ import kotlinx.coroutines.*
 import android.os.Looper
 import android.widget.ProgressBar
 import android.widget.ToggleButton
+import com.example.app.CustomBatteryView  // 패키지 경로를 올바르게 수정
 
 class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
@@ -53,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var leftBlinker1: ImageView
     private lateinit var leftBlinker2: ImageView
     private lateinit var leftBlinker3: ImageView
+    private lateinit var batteryView: CustomBatteryView  // 배터리 뷰 추가
 
     // 스와이프 감지를 위한 변수
     private var x1: Float = 0.0f
@@ -86,6 +88,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // 배터리 잔량 업데이트를 위한 수신기 추가
+    private val batteryStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val batteryLevel = intent?.getStringExtra("battery_level")
+            if (batteryLevel != null) {
+                batteryView.setBatteryLevel(batteryLevel.toFloat().toInt())  // Float 값을 Int로 변환하여 전달
+            }
+        }
+    }
+
     private var isAnimating = false // 애니메이션 상태를 저장하는 변수
 
     private fun startIpSearchAnimation() {
@@ -96,7 +108,7 @@ class MainActivity : AppCompatActivity() {
                     if (loadingDots.length >= 3) loadingDots = ""
                     loadingDots += "."
                     ipAddressTextView.text = "IP 주소를 검색 중입니다$loadingDots"
-                    ipUpdateHandler.postDelayed(this, 800)  // 계속해서 애니메이션을 유지
+                    ipUpdateHandler.postDelayed(this, 300)  // 계속해서 애니메이션을 유지
                 }
             }
         }
@@ -125,6 +137,7 @@ class MainActivity : AppCompatActivity() {
 
         // 수신기 등록
         LocalBroadcastManager.getInstance(this).registerReceiver(blinkerStatusReceiver, IntentFilter("UPDATE_BLINKER_STATUS"))
+        LocalBroadcastManager.getInstance(this).registerReceiver(batteryStatusReceiver, IntentFilter("UPDATE_BATTERY_STATUS"))  // 배터리 잔량 수신기 등록
 
         // 배터리 최적화 중지 요청
         checkBatteryOptimization()
@@ -166,7 +179,7 @@ class MainActivity : AppCompatActivity() {
                     if (loadingDots.length >= 3) loadingDots = ""
                     loadingDots += "."
                     ipAddressTextView.text = "IP 주소를 검색 중입니다$loadingDots"
-                    ipUpdateHandler.postDelayed(this, 200)
+                    ipUpdateHandler.postDelayed(this, 300)
                 }
             }
         }
@@ -234,6 +247,8 @@ class MainActivity : AppCompatActivity() {
 
         // 기본값을 자동 모드로 설정
         toggleModeButton.isChecked = false
+
+        batteryView = findViewById(R.id.batteryView)  // 배터리 뷰 초기화
     }
 
     private fun setupListeners() {
@@ -403,6 +418,7 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(ipReceiver, IntentFilter("UPDATE_IP_ADDRESS"))
         LocalBroadcastManager.getInstance(this).registerReceiver(recordingStatusReceiver, IntentFilter("UPDATE_RECORDING_STATUS"))
         LocalBroadcastManager.getInstance(this).registerReceiver(blinkerStatusReceiver, IntentFilter("UPDATE_BLINKER_STATUS"))
+        LocalBroadcastManager.getInstance(this).registerReceiver(batteryStatusReceiver, IntentFilter("UPDATE_BATTERY_STATUS"))  // 배터리 잔량 수신기 등록
     }
 
     private fun updateIpSearchStatus() {
@@ -496,6 +512,7 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(ipReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(recordingStatusReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(blinkerStatusReceiver)  // 수신기 해제
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(batteryStatusReceiver)  // 배터리 잔량 수신기 해제
         ipUpdateHandler.removeCallbacks(ipUpdateRunnable)
         scope.cancel() // Cancel coroutines when the activity is destroyed
     }

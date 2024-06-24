@@ -54,7 +54,8 @@ class NetworkScanService : Service() {
         if (!userAction) {
             startForegroundServiceWithNotification()
             serviceScope.launch { startSignalSending() }
-            serviceScope.launch { listenForUdpBroadcast() }
+            serviceScope.launch { listenForUdpBroadcast(udpPort) }
+            serviceScope.launch { listenForUdpBroadcast(secondaryUdpPort) }
         }
 
         val signal = intent.getStringExtra("signal") ?: "REQUEST_IP"
@@ -131,27 +132,23 @@ class NetworkScanService : Service() {
         }
     }
 
-    private suspend fun listenForUdpBroadcast() {
+    private suspend fun listenForUdpBroadcast(port: Int) {
         withContext(Dispatchers.IO) {
-            arrayOf(udpPort, secondaryUdpPort).forEach { port ->
-                launch {
-                    try {
-                        DatagramSocket(null).apply {
-                            reuseAddress = true
-                            bind(java.net.InetSocketAddress(port))
-                        }.use { socket ->
-                            val buffer = ByteArray(1024)
-                            while (true) {
-                                val packet = DatagramPacket(buffer, buffer.size)
-                                socket.receive(packet)
-                                resetTimer()
-                                if (port == udpPort) handleReceivedPacket(packet) else handleReceivedPacketSecondary(packet)
-                            }
-                        }
-                    } catch (e: IOException) {
-                        Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
+            try {
+                DatagramSocket(null).apply {
+                    reuseAddress = true
+                    bind(java.net.InetSocketAddress(port))
+                }.use { socket ->
+                    val buffer = ByteArray(1024)
+                    while (true) {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        resetTimer()
+                        if (port == udpPort) handleReceivedPacket(packet) else handleReceivedPacketSecondary(packet)
                     }
                 }
+            } catch (e: IOException) {
+                Log.e("NetworkScanService", "UDP 브로드캐스트 수신 중 오류 발생: ", e)
             }
         }
     }
@@ -164,7 +161,7 @@ class NetworkScanService : Service() {
         timer = Timer().apply {
             schedule(object : TimerTask() {
                 override fun run() {
-                    if (System.currentTimeMillis() - lastUpdateTime >= 8000) {
+                    if (System.currentTimeMillis() - lastUpdateTime >= 3000) {
                         isDisconnected = true
                         updateConnectionStatus(false)
                     }
@@ -198,6 +195,16 @@ class NetworkScanService : Service() {
             updateNotification("연결된 IP: $ipInfo", "CONNECTED")
             broadcastUpdate("UPDATE_IP_ADDRESS", "ip_address", ipInfo)
             broadcastUpdate("UPDATE_RECORDING_STATUS", "recording_status", status)
+
+            // 배터리 잔량 처리 추가
+            if (status.startsWith("Battery")) {
+                val batteryLevelRegex = """Level: (\d+\.\d+)%""".toRegex()
+                val matchResult = batteryLevelRegex.find(status)
+                val batteryLevel = matchResult?.groups?.get(1)?.value?.toFloatOrNull()
+                if (batteryLevel != null) {
+                    broadcastUpdate("UPDATE_BATTERY_STATUS", "battery_level", batteryLevel.toString())
+                }
+            }
         }
     }
 

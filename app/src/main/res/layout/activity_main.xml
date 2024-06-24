@@ -7,9 +7,6 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <!-- 기존 RelativeLayout을 DrawerLayout의 자식으로 내부에 배치 -->
-
-    <!-- 네비게이션 드로어 -->
     <RelativeLayout
         android:id="@+id/main_layout"
         android:layout_width="match_parent"
@@ -34,6 +31,15 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
+        <!-- 배터리 잔량 커스텀 뷰 -->
+        <com.example.app.CustomBatteryView
+            android:id="@+id/batteryView"
+            android:layout_width="50dp"
+            android:layout_height="25dp"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="16dp" />
+
         <!-- 로딩 인디케이터 -->
         <ProgressBar
             android:id="@+id/progressBar"
@@ -41,7 +47,7 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
             android:indeterminate="true"
-            android:visibility="gone" />  <!-- 처음에는 보이지 않도록 설정 -->
+            android:visibility="gone" />
 
         <!-- 기타 UI 요소들 -->
         <Button
@@ -109,7 +115,6 @@
             android:layout_marginTop="80dp"
             app:srcCompat="@drawable/left_blinker_orange_3" />
 
-
         <ImageView
             android:id="@+id/right_blinker_orange_1"
             android:layout_width="180dp"
@@ -155,5 +160,5 @@
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        app:menu="@menu/drawer_view" /> <!-- 메뉴 아이템, 별도로 생성 필요 -->
+        app:menu="@menu/drawer_view" />
 </androidx.drawerlayout.widget.DrawerLayout>
