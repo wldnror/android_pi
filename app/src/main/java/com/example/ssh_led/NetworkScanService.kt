@@ -155,18 +155,26 @@ class NetworkScanService : Service() {
 
     private fun resetTimer() {
         synchronized(this) {
-            timer?.cancel()
-            timer?.purge()
+            lastUpdateTime = System.currentTimeMillis()
         }
+    }
+
+    private fun startConnectionChecker() {
         timer = Timer().apply {
-            schedule(object : TimerTask() {
+            scheduleAtFixedRate(object : TimerTask() {
                 override fun run() {
-                    if (System.currentTimeMillis() - lastUpdateTime >= 3000) {
-                        isDisconnected = true
-                        updateConnectionStatus(false)
+                    synchronized(this@NetworkScanService) {
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastUpdateTime > 10000) {  // 10초 동안 메시지 수신이 없었다면
+                            isDisconnected = true
+                            updateConnectionStatus(false)
+                        } else {
+                            isDisconnected = false
+                            updateConnectionStatus(true)
+                        }
                     }
                 }
-            }, 2000)
+            }, 0, 10000)  // 10초마다 확인
         }
     }
 
